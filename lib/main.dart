@@ -1424,13 +1424,7 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
         _selectedIndex = 1;
         highlightedMaintenanceKey = NotificationService.selectedServiceKey ?? '';
         _bypassPremiumForNotification = true;
-      
-
-      // ✅ اضافه کردن این بخش برای بازسازی زمان‌بندی در OS
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _refreshAllMaintenanceReminders(); 
-  });
-  }
+      }
 
 
       // 🔴 ۲. گوش دادن به تغییرات بعدی نوتیفایر در زمان باز بودن برنامه
@@ -1487,16 +1481,18 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
 // import 'package:permission_handler/permission_handler.dart';
 
   Future<void> _checkNotificationPermissions() async {
-    // گرفتن وضعیت لحظه‌ای پرمیشن از سیستم‌عامل
     if (kIsWeb) return;
+
+    final bool pluginGranted = await NotificationService.requestPermission();
+
     PermissionStatus status = await Permission.notification.status;
 
-    if (status.isDenied) {
-      // اگر کاربر هنوز تصمیم نگرفته یا قبلاً رد کرده (اما نه به صورت دائمی)
+    if (!pluginGranted && (status.isDenied || status.isRestricted)) {
       await Permission.notification.request();
-    } else if (status.isPermanentlyDenied) {
-      // 🔴 حالت مدنظر شما: کاربر به طور دستی در تنظیمات گوشی نوتیفیکیشن را غیرفعال کرده است
-      // در این حالت سیستم‌عامل اجازه نمایش پاپ‌آپِ درخواست را نمی‌دهد، پس باید کاربر را به تنظیمات هدایت کنیم
+      status = await Permission.notification.status;
+    }
+
+    if (status.isPermanentlyDenied) {
       if (mounted) {
         _showNotificationSettingsDialog();
       }
@@ -1560,6 +1556,8 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
         _isMaintenanceLoading = false;
       });
     }
+
+    await _refreshAllMaintenanceReminders();
   }
 
   List<MaintenanceItem> _defaultMaintenanceItems() {
@@ -2290,6 +2288,7 @@ Future<void> _openGoogleMapsForParkingFallback({
     });
     await _saveMaintenanceData();
     await NotificationService.cancelMaintenanceNotification(item.key);
+    await _refreshAllMaintenanceReminders();
   }
 
   Future<void> _moveMaintenanceItem(MaintenanceItem item, int direction) async {

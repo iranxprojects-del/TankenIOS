@@ -56,6 +56,8 @@
     <string>برای یافتن نزدیک‌ترین جایگاه‌های سوخت به موقعیت شما نیاز است.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>برای یافتن نزدیک‌ترین جایگاه‌های سوخت به موقعیت شما نیاز است.</string>
+    <key>NSUserNotificationUsageDescription</key>
+    <string>برای یادآوری سرویس خودرو و هشدار قیمت سوخت به اعلان نیاز است.</string>
 
     <!-- مجوز باز کردن لینک‌ها (https, http, geo, Apple Maps, Google Maps) -->
     <key>LSApplicationQueriesSchemes</key>
