@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "334959934556",
+    "project_id": "tanken-adak-app",
+    "storage_bucket": "tanken-adak-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:334959934556:android:f2f82315838eaba3dbfa99",
+        "android_client_info": {
+          "package_name": "com.Hanno.tanken_DE_Smart"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6TpV47Pu2LYj-1E2mLji_Q4vyfCdW4cc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

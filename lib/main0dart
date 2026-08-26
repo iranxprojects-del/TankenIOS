@@ -1,0 +1,1690 @@
+import 'package:latlong2/latlong.dart' as ll;
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+
+import 'package:flutter/foundation.dart'; // برای تشخیص وب یا موبایل
+
+import 'notification_service.dart';
+import 'package:hive_flutter/hive_flutter.dart'; // برای رفع ارور initFlutter
+import 'package:workmanager/workmanager.dart'; // برای رفع ارور Workmanager
+//import 'package:latlong/latlong.dart' as latLng;
+
+import 'package:flutter_map/flutter_map.dart';
+
+//import 'package:latlong2/latlong2.dart' as real_latlong;
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+  await NotificationService.init();
+
+  if (!kIsWeb) {
+    Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+
+    // Task 1: Fuel Check (Dar 1 kalake)
+    Workmanager().registerPeriodicTask(
+      "fuel-task-id",
+      "periodicFuelCheck",
+      frequency: const Duration(hours: 2),
+      initialDelay: const Duration(minutes: 5),
+      constraints: Constraints(
+        networkType: NetworkType.connected, // فقط وقتی اینترنت دارد
+      ),
+    );
+
+    // Task 2: Service Check (Dar 24 kalake)
+    Workmanager().registerPeriodicTask(
+      "service-task-id",
+      "dailyServiceCheck",
+      frequency: const Duration(hours: 24),
+      initialDelay: const Duration(minutes: 15),
+    );
+  }
+
+  runApp(const AdakTenkenPro());
+}
+
+class AdakTenkenPro extends StatelessWidget {
+  const AdakTenkenPro({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
+      home: const FuelDashboard(),
+    );
+  }
+}
+
+class FuelDashboard extends StatefulWidget {
+  const FuelDashboard({super.key});
+  @override
+  State<FuelDashboard> createState() => _FuelDashboardState();
+}
+
+class _FuelDashboardState extends State<FuelDashboard> {
+  String selectedFuel = 'diesel'; // پیش‌فرض
+  List stations = [];
+  bool isLoading = false;
+  double _fontScale = 1.0;
+  String carModel = "";
+  String selectedServiceType = 'Oil Change';
+  String currentKm = '';
+  int _selectedIndex = 0; // 0 برای بنزین، 1 برای سرویس‌ها
+  String serviceView = 'history'; // مقدار پیش‌فرض: تاریخچه سرویس
+  double userLat = 52.5200; // مقدار پیش‌فرض (برلین)
+  double userLng = 13.4050;
+  List<String> serviceCategories = [
+    'Oil Change',
+    'Timing Belt',
+    'Brake Pads',
+    'Spark Plugs',
+    'Tires',
+    'TÜV / Inspection',
+  ];
+  double dieselThreshold = 1.50; // قیمت هدف برای گازوئیل
+  double e10Threshold = 1.70; // قیمت هدف برای E10
+  double e5Threshold = 1.80; // قیمت هدف برای E5
+
+  TextEditingController _priceController = TextEditingController(text: "1.50");
+  double? myThreshold;
+  // ذخیره اطلاعات امکانات: key آیدی پمپ بنزین است و value امکانات آن
+  Map<String, Map<String, bool>> facilitiesCache = {};
+
+  Map<String, dynamic> offlineStations = {};
+
+  String fuelViewMode = 'map'; // 'map' or 'list'
+  String parkingViewMode = 'map'; // 'map' or 'list'
+
+
+  Widget _buildPriceAlertSetter() {
+    // اگر دیتایی لود نشده یا لیستی نداریم، ویجت را نشان نده
+    if (stations.isEmpty) return const SizedBox.shrink();
+
+    // تنظیم مقدار اولیه بر اساس ارزان‌ترین قیمت فعلی (فقط برای بار اول)
+    if (myThreshold == null) {
+      myThreshold = stations[0]['price'];
+      _priceController.text = myThreshold!.toStringAsFixed(2);
+    }
+
+    return Card(
+      margin: const EdgeInsets.all(15),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          children: [
+            const Text(
+              "Set Price Drop Alert",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              "Get notified when price goes below this amount",
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.remove_circle,
+                    color: Colors.red,
+                    size: 35,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      myThreshold = (myThreshold ?? 0.0) - 0.02;
+                      _priceController.text = myThreshold!.toStringAsFixed(2);
+                    });
+                  },
+                ),
+                SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: _priceController,
+                    textAlign: TextAlign.center,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    decoration: const InputDecoration(
+                      suffixText: "€",
+                      contentPadding: EdgeInsets.symmetric(vertical: 10),
+                    ),
+                    onChanged: (val) {
+                      myThreshold = double.tryParse(val) ?? myThreshold;
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.add_circle,
+                    color: Colors.green,
+                    size: 35,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      myThreshold = (myThreshold ?? 0.0) + 0.02;
+                      _priceController.text = myThreshold!.toStringAsFixed(2);
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 45),
+              ),
+              icon: const Icon(Icons.notifications_active),
+              label: const Text("Save Alert Settings"),
+              onPressed: () async {
+                var box = await Hive.openBox('settingsBox');
+                await box.put('targetPrice', myThreshold);
+                // ذخیره نوع سوخت فعلی هم مهم است تا در بک‌گراند بدانیم چه چیزی را چک کنیم
+                await box.put('alertFuelType', selectedFuel);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      "Alert set for €${myThreshold!.toStringAsFixed(2)}",
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> fetchPrices() async {
+    setState(() => isLoading = true);
+
+    try {
+      // 1. Check kardan va darkhast-e Permission be tore dasti
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      // Agar karbar ejaze nadad, loading ra bando va kharej sho
+      if (permission != LocationPermission.always &&
+          permission != LocationPermission.whileInUse) {
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Location permission is required to find local stations.",
+            ),
+          ),
+        );
+        return;
+      }
+
+      // 2. Gereftan-e location-e daghigh
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final lat = position.latitude;
+      final lng = position.longitude;
+
+      setState(() {
+        userLat = lat;
+        userLng = lng;
+      });
+
+      const apiKey = "ece7e50d-72fe-4e51-a996-555e56ca910c";
+      final url =
+          "https://creativecommons.tankerkoenig.de/json/list.php?lat=$lat&lng=$lng&rad=10&sort=price&type=$selectedFuel&apikey=$apiKey";
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['ok'] == true) {
+          setState(() {
+            stations = (data['stations'] as List).where((s) {
+              return s['isOpen'] == true &&
+                  s['price'] != null &&
+                  s['price'] > 0;
+            }).toList();
+
+            stations.sort((a, b) => a['price'].compareTo(b['price']));
+            isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      print("Error: $e");
+    }
+  }
+
+  Future<void> _requestLocationPermissions() async {
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Location permission granted. You can now fetch nearby stations.",
+          ),
+        ),
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enable location permission in app settings."),
+        ),
+      );
+      await Geolocator.openAppSettings();
+    }
+  }
+
+  Future<void> _openAppSettings() async {
+    bool opened = await Geolocator.openAppSettings();
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Unable to open app settings. Please open settings manually.",
+          ),
+        ),
+      );
+    }
+  }
+
+
+  void _toggleZoom() {
+    setState(() {
+      _fontScale = (_fontScale == 1.0) ? 1.6 : 1.0; // ۶۰ درصد بزرگتر
+    });
+  }
+
+  Future<void> _openMap(double lat, double lng) async {
+    // لینک استاندارد گوگل مپ برای مسیریابی (Direction) از مکان فعلی به مقصد
+    final url = Uri.parse(
+      "https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving",
+    );
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      throw 'Could not launch $url';
+    }
+  }
+
+
+
+  Future<Map<String, bool>> fetchStationFacilities(
+    double lat,
+    double lng,
+  ) async {
+    final query =
+        """
+  [out:json][timeout:15];
+  (
+    node(around:100, $lat, $lng)["amenity"="fuel"];
+    way(around:100, $lat, $lng)["amenity"="fuel"];
+  );
+  out tags;
+  """;
+
+    try {
+      final response = await http.post(
+        Uri.parse("https://overpass-api.de/api/interpreter"),
+        body: query,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['elements'] != null && data['elements'].isNotEmpty) {
+          final Map<String, dynamic> tags = data['elements'][0]['tags'] ?? {};
+
+          return {
+            // اگر تگ toilets داشت یا اگر ویلچر داشت (معمولاً پمپ های ویلچرخور دستشویی دارند)
+            'hasToilet':
+                tags['toilets'] == 'yes' ||
+                tags['wheelchair'] == 'yes' ||
+                tags['wheelchair'] == 'limited',
+
+            // اگر AdBlue داشت یا hgv بود، برای کامیون (LKW) مناسب است
+            'isLKW':
+                tags['hgv'] == 'yes' ||
+                tags['fuel:adblue'] == 'yes' ||
+                tags['fuel:diesel:class2'] == 'yes',
+
+            // اگر کلمه shop یا supermarket یا convenience در تگ ها بود
+            'hasFood':
+                tags.containsKey('shop') ||
+                tags['amenity'] == 'restaurant' ||
+                tags['cuisine'] != null,
+          };
+        }
+      }
+    } catch (e) {
+      print("OSM Error: $e");
+    }
+    return {'hasToilet': false, 'isLKW': false, 'hasFood': false};
+  }
+
+  Widget _buildFacilityIcon(IconData icon, String stationId, String feature) {
+    bool? isAvailable = facilitiesCache[stationId]?[feature];
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: Icon(
+        icon,
+        size: 16,
+        // اگر دیتا داشتیم و true بود رنگی، وگرنه خاکستری
+        color: isAvailable == true ? Colors.blue : Colors.grey.shade300,
+      ),
+    );
+  }
+
+  void _showDetails(Map<String, dynamic> station) {
+    // استخراج امکانات بر اساس مختصات ایستگاهی که روش کلیک شده
+    final facilities = getFacilities(station['lat'], station['lng']);
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                station['name'],
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Divider(),
+              // نمایش ردیف امکانات با استفاده از دیتای آفلاین
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildDetailIcon(Icons.wc, "Toilet", facilities['wc'] == 1),
+                  _buildDetailIcon(
+                    Icons.local_shipping,
+                    "LKW",
+                    facilities['lkw'] == 1,
+                  ),
+                  _buildDetailIcon(
+                    Icons.shopping_basket,
+                    "Shop",
+                    facilities['shop'] == 1,
+                  ),
+                  _buildDetailIcon(
+                    Icons.local_car_wash,
+                    "Wash",
+                    facilities['wash'] == 1,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailIcon(IconData icon, String label, bool isActive) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: isActive ? Colors.blue : Colors.grey.withOpacity(0.3),
+          size: 30,
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            color: isActive ? Colors.black : Colors.grey,
+            fontSize: 10,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // یک تابع کمکی برای اینکه کد تمیزتر شود و "Unknown" حذف شود
+  Widget _buildDetailRow(
+    IconData icon,
+    String title, {
+    bool? status,
+    String? trailingText,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: (status == true || trailingText != null)
+            ? Colors.blue
+            : Colors.grey,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(fontSize: 14 * _fontScale), // اعمال بزرگ‌نمایی
+      ),
+      trailing: Text(
+        // اگر متن خاصی فرستاده بودیم (مثل قیمت) همان را نشان بده، در غیر این صورت Yes/No
+        trailingText ??
+            (status == true
+                ? "Yes"
+                : (status == false ? "No" : "Searching...")),
+        style: TextStyle(
+          color: (status == true || trailingText != null)
+              ? Colors.green
+              : Colors.grey,
+          fontWeight: FontWeight.bold,
+          fontSize: 16 * _fontScale, // اعمال بزرگ‌نمایی
+        ),
+      ),
+    );
+  }
+
+  Future<void> loadOfflineData() async {
+    try {
+      String jsonString = await rootBundle.loadString(
+        'assets/germany_stations.json',
+      );
+      List<dynamic> list = json.decode(jsonString);
+
+      // تبدیل لیست به Map برای دسترسی سریع با کلید مختصات
+      // کلید: "lat_lng" با دقت ۳ رقم اعشار برای خطای جزیی GPS
+      for (var s in list) {
+        String key =
+            "${s['lat'].toStringAsFixed(3)}_${s['lng'].toStringAsFixed(3)}";
+        offlineStations[key] = s;
+      }
+      setState(() {});
+    } catch (e) {
+      print("Error loading offline data: $e");
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadOfflineData(); // لود کردن دیتای ۱۸ هزار ایستگاه
+    _loadSavedCarModel();
+    //fetchPrices();
+  }
+
+  Future<void> _loadSavedCarModel() async {
+    var box = await Hive.openBox('carServiceBox');
+    setState(() {
+      carModel = box.get('model', defaultValue: "");
+    });
+  }
+
+  Map<String, int> getFacilities(double lat, double lng) {
+    String key = "${lat.toStringAsFixed(3)}_${lng.toStringAsFixed(3)}";
+    if (offlineStations.containsKey(key)) {
+      var s = offlineStations[key];
+      return {
+        "wc": s['wc'] ?? 0,
+        "lkw": s['lkw'] ?? 0,
+        "rest": s['rest'] ?? 0,
+        "play": s['play'] ?? 0,
+        "shop": s['shop'] ?? 0,
+        "wash": s['wash'] ?? 0,
+      };
+    }
+    return {"wc": 0, "lkw": 0, "rest": 0, "play": 0, "shop": 0, "wash": 0};
+  }
+
+  Future<void> _sendEmailReminder() async {
+    final Uri emailLaunchUri = Uri(
+      scheme: 'mailto',
+      path: 'ahmdel@gmail.com',
+      query: encodeQueryParameters(<String, String>{
+        'subject': 'Car Service Log - Adak App',
+        'body':
+            'Car Model: $carModel\n'
+            'Service Type: $selectedServiceType\n'
+            'Mileage: $currentKm Km\n'
+            'Next service reminder set for 6 months later.',
+      }),
+    );
+
+    if (await canLaunchUrl(emailLaunchUri)) {
+      await launchUrl(emailLaunchUri);
+    }
+  }
+
+  String? encodeQueryParameters(Map<String, String> params) {
+    return params.entries
+        .map(
+          (e) =>
+              '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}',
+        )
+        .join('&');
+  }
+
+
+
+  Future<void> saveServiceInfo(
+    String model,
+    String date,
+    String type,
+    String km,
+  ) async {
+    var box = await Hive.openBox('carServiceBox');
+
+    // ایجاد یک Map برای هر رکورد
+    final newRecord = {'model': model, 'date': date, 'type': type, 'km': km};
+
+    // اضافه کردن به لیست تاریخچه (به جای جایگزین کردن)
+    await box.add(newRecord);
+
+    // برای آپدیت شدن لحظه‌ای لیست در اپلیکیشن
+    setState(() {});
+  }
+
+  Future<void> fetchEVStations() async {
+    setState(() => isLoading = true);
+    //LocationPermission permission = await Geolocator.requestPermission();
+    Position position = await Geolocator.getCurrentPosition();
+
+    // استفاده از مختصات زنده
+    final lat = position.latitude;
+    final lng = position.longitude;
+    final String apiKey =
+        "1496f02a-4cf6-45fd-90e9-83bb67a3cdab"; // کلیدی که گرفتید
+    final String url =
+        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&latitude=$lat&longitude=$lng&maxresults=20&compact=true&verbose=false&key=$apiKey";
+    //
+    //"https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&maxresults=10&compact=true&verbose=false";
+    try {
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: {
+              // این خط خیلی مهمه! به سرور می‌گه من گوشی اندرویدی هستم نه کد برنامه‌نویسی
+              "User-Agent":
+                  "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36",
+              "Accept": "application/json",
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        //List<dynamic> data = json.decode(response.json());
+        List<dynamic> data = json.decode(response.body); // تغییر به body
+        setState(() {
+          // تبدیل فرمت دیتا به فرمتی که در لیست نمایش می‌دهید
+          stations = data.map((item) {
+            var connections = item['Connections'] as List?;
+            String power = "N/A";
+            if (connections != null && connections.isNotEmpty) {
+              power = "${connections[0]['PowerKW'] ?? '?'}kW";
+            }
+
+            // --- جلوگیری از کرش در بخش AddressInfo ---
+            var addr = item['AddressInfo'] ?? {};
+
+            return {
+              'name': addr['Title'] ?? 'Unnamed Station',
+              'brand': 'EV Charging',
+              'street': addr['AddressLine1'] ?? 'No Address',
+              'houseNumber': '',
+              'lat': addr['Latitude'] ?? 0.0,
+              'lng': addr['Longitude'] ?? 0.0,
+              'price': '⚡ $power', // مقدار توان رو اینجا می‌ذاریم
+              'isOpen': true,
+              'dist': (addr['Distance'] ?? 0).toStringAsFixed(1),
+            };
+          }).toList();
+        });
+        print("✅ دیتا با موفقیت دریافت شد");
+      } else {
+        print("❌ خطای سرور: ${response.body}");
+      }
+    } catch (e) {
+      print("EV Error: $e");
+    } finally {
+      print("🏁 پایان فراخوانی و توقف لودینگ");
+      setState(() => isLoading = false);
+    }
+  }
+
+ 
+
+  Future<void> fetchParkingData() async {
+    setState(() => isLoading = true);
+
+    Position position = await Geolocator.getCurrentPosition();
+
+    // استفاده از مختصات زنده
+    final lat = position.latitude;
+    final lng = position.longitude;
+
+    // استفاده از Overpass API برای پیدا کردن پارکینگ‌های اطراف
+    final String url =
+        "https://overpass-api.de/api/interpreter?data=[out:json];node(around:5000,$lat,$lng)[\"amenity\"=\"parking\"];out;";
+
+    try {
+      //final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
+      final response = await http
+          .get(
+            Uri.parse(url),
+            headers: {
+              "User-Agent": "GermanyFuelApp/1.0", // یک نام دلخواه
+              "Accept": "application/json",
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        Map<String, dynamic> decoded = json.decode(response.body);
+        List<dynamic> elements = decoded['elements'];
+
+        setState(() {
+          stations = elements.map((p) {
+            var tags = p['tags'] ?? {};
+            return {
+              'name': tags['name'] ?? 'Parkplatz',
+              'brand': 'Parking',
+              'street': tags['street'] ?? 'Public Area',
+              'houseNumber': '',
+              'lat': p['lat'],
+              'lng': p['lon'],
+              'price': 'P', // دیتای قیمت پارکینگ‌های عمومی معمولاً در API نیست
+              'isOpen': true,
+              'free_slots': 10, // مقدار تستی چون API رایگان ظرفیت لحظه‌ای نمیده
+              'dist': 'Nearby',
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      print("Parking Error: $e");
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  // تابع کمکی برای ساخت آیکون‌های کوچک
+  Widget _buildIcon(IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: Icon(icon, size: 16, color: color),
+    );
+  }
+
+  Widget _buildServicePage() {
+    return Column(
+      children: [
+        // تبلت انتخابگر بین سرویس و پارکینگ
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                value: 'history',
+                label: Text('Car Service'),
+                icon: Icon(Icons.history),
+              ),
+              ButtonSegment(
+                value: 'parking',
+                label: Text('Parking'),
+                icon: Icon(Icons.local_parking),
+              ),
+            ],
+            selected: {serviceView},
+            onSelectionChanged: (Set<String> newSelection) {
+              setState(() {
+                serviceView = newSelection.first;
+                stations = []; // لیست رو خالی می‌کنیم برای دیتای جدید
+              });
+              if (serviceView == 'parking') {
+                fetchParkingData(); // فراخوانی دیتای پارکینگ
+              }
+            },
+          ),
+        ),
+
+        // نمایش محتوا بر اساس انتخاب کاربر
+        Expanded(
+          child: serviceView == 'history'
+              ? _buildServiceHistoryList() // تابع لیست سرویس‌ها
+              : _buildParkingList(), // تابع لیست پارکینگ‌ها
+        ),
+      ],
+    );
+  }
+
+  void _showAddCategoryDialog() {
+    String newType = "";
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add Custom Service/Part"),
+        content: TextField(
+          decoration: const InputDecoration(
+            hintText: "e.g. Fuel Pump, Battery...",
+          ),
+          onChanged: (val) => newType = val,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (newType.isNotEmpty) {
+                setState(() {
+                  serviceCategories.add(newType); // اضافه کردن به لیست
+                  selectedServiceType = newType; // انتخاب خودکار آیتم جدید
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text("Add"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // لیست سرویس‌های ماشین
+  Widget _buildServiceHistoryList() {
+    return ListView(
+      children: [
+        Card(
+          margin: const EdgeInsets.all(16),
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(
+                  child: Text(
+                    "🚗 Smart Service Log",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // --- Car Model Field ---
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: "Car Model",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.directions_car),
+                  ),
+                  onChanged: (val) => carModel = val,
+                ),
+                const SizedBox(height: 15),
+
+                // --- Service Type Dropdown ---
+                // --- کل این بخش جایگزین کدهای قبلی دراپ‌داون شود ---
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: selectedServiceType,
+                        decoration: const InputDecoration(
+                          labelText: "Service Type",
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.build),
+                        ),
+                        // اینجا از لیست داینامیک استفاده می‌کنیم
+                        items: serviceCategories.map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            selectedServiceType = val!;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // دکمه سبز برای اضافه کردن فیلد جدید
+                    IconButton(
+                      padding: const EdgeInsets.only(top: 8),
+                      icon: const Icon(
+                        Icons.add_circle,
+                        color: Colors.green,
+                        size: 36,
+                      ),
+                      onPressed: () =>
+                          _showAddCategoryDialog(), // دیالوگی که قبلاً نوشتیم
+                    ),
+                  ],
+                ),
+                // --- پایان بخش اصلاح شده ---
+                const SizedBox(height: 15),
+
+                // --- Mileage Field ---
+                TextField(
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: "Current Mileage (Km)",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.speed),
+                  ),
+                  onChanged: (val) => currentKm = val,
+                ),
+                const SizedBox(height: 20),
+
+                // --- Date Picker & Submit ---
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.save),
+                  label: const Text("Log Service & Date"),
+                  onPressed: () async {
+                    DateTime? picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      // حالا تمام اطلاعات را می‌فرستیم: مدل، تاریخ، نوع سرویس و کیلومتر
+                      saveServiceInfo(
+                        carModel,
+                        picked.toIso8601String(),
+                        selectedServiceType,
+                        currentKm,
+                      );
+                      _sendEmailReminder();
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Service logged successfully!"),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Text(
+            "Recent History:",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+
+        _buildPreviousLogs(),
+      ],
+    );
+  }
+
+  Widget _buildPreviousLogs() {
+    return FutureBuilder(
+      future: Hive.openBox('carServiceBox'),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.done) {
+          var box = Hive.box('carServiceBox');
+          // تبدیل مقادیر باکس به لیست و معکوس کردن (برای نمایش جدیدترین‌ها در بالا)
+          final logs = box.values.toList().reversed.toList();
+
+          if (logs.isEmpty) {
+            return const Center(
+              child: Text("No history found. Log your first service!"),
+            );
+          }
+
+          return Column(
+            children: List.generate(logs.length, (index) {
+              final item = logs[index] as Map;
+              final dynamic key = box.keyAt(
+                box.length - 1 - index,
+              ); // پیدا کردن کلید اصلی برای حذف/ویرایش
+
+              return ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Colors.blueAccent,
+                  child: Icon(Icons.history, color: Colors.white),
+                ),
+                title: Text("${item['type']} - ${item['model']}"),
+                subtitle: Text(
+                  "Date: ${item['date'].toString().split('T')[0]} | KM: ${item['km']}",
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // دکمه ویرایش
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: Colors.grey),
+                      onPressed: () => _editServiceEntry(key, item),
+                    ),
+                    // دکمه حذف
+                    IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      onPressed: () async {
+                        await box.delete(key);
+                        setState(() {}); // رفرش لیست
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }),
+          );
+        } else {
+          return const Center(child: CircularProgressIndicator());
+        }
+      },
+    );
+  }
+
+  void _editServiceEntry(dynamic key, Map data) {
+    setState(() {
+      carModel = data['model'];
+      selectedServiceType = data['type'];
+      currentKm = data['km'];
+
+      // Juni entry ne delete karo jethi save karva par fakt navi entry rahe
+      Hive.box('carServiceBox').delete(key);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            "Editing ${data['type']}. Old record removed. Update fields and save.",
+          ),
+        ),
+      );
+    });
+  }
+
+  // لیست پارکینگ‌ها (دقیقاً با همان استایلی که برای بنزین داشتی)
+  Widget _buildParkingList() {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Column(
+      children: [
+        // بخش انتخاب حالت نمایش برای پارکینگ
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                value: 'map',
+                label: Text('Map View'),
+                icon: Icon(Icons.map),
+              ),
+              ButtonSegment(
+                value: 'list',
+                label: Text('List View'),
+                icon: Icon(Icons.list),
+              ),
+            ],
+            selected: {parkingViewMode},
+            onSelectionChanged: (Set<String> newSelection) {
+              setState(() {
+                parkingViewMode = newSelection.first;
+              });
+            },
+          ),
+        ),
+
+        // نمایش بر اساس حالت انتخاب شده
+        Expanded(
+          child: parkingViewMode == 'map'
+              ? _buildParkingMap()
+              : ListView.builder(
+                  itemCount: stations.length,
+                  itemBuilder: (context, index) {
+                    final s = stations[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: ListTile(
+                        leading: const Icon(Icons.local_parking, color: Colors.blue),
+                        title: Text(s['name'] ?? 'Parkhaus'),
+                        subtitle: Text("${s['street']} - ${s['dist']} km"),
+                        trailing: Text(
+                          "${s['free_slots'] ?? 'N/A'}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        onTap: () => _openMap(s['lat'], s['lng']),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      // AppBar را اینجا داینامیک می‌کنیم که با عوض شدن صفحه، عنوان هم عوض شود
+      appBar: AppBar(
+        title: Text(
+          _selectedIndex == 0 ? "Germany Fuel Live" : "Car Service/ Parking",
+        ),
+        centerTitle: true,
+        actions: _selectedIndex == 0
+            ? [
+                IconButton(
+                  icon: Icon(_fontScale > 1.0 ? Icons.zoom_out : Icons.zoom_in),
+                  onPressed: _toggleZoom,
+                ),
+              ]
+            : null, // در صفحه سرویس دکمه زوم را نشان نده
+      ),
+
+      body: _selectedIndex == 0
+          ? _buildFuelPage(context) // حذف Scaffold از داخل این تابع ضروری است
+          : _buildServicePage(),
+
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: (index) => setState(() => _selectedIndex = index),
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.local_gas_station),
+            label: 'Fuel',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.build_circle),
+            label: 'Services-Parking',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFuelPage(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // ۱. بخش انتخاب سوخت
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'diesel',
+                  label: Text('Diesel'),
+                  icon: Icon(Icons.oil_barrel),
+                ),
+                ButtonSegment(value: 'e10', label: Text('E10')),
+                ButtonSegment(value: 'e5', label: Text('E5')),
+                ButtonSegment(
+                  value: 'ev',
+                  label: Text('EV'),
+                  icon: Icon(Icons.electric_car),
+                ),
+                //ButtonSegment(value: 'parking', label: Text('Parking'), icon: Icon(Icons.local_parking)),
+              ],
+              selected: {selectedFuel},
+              onSelectionChanged: (Set<String> newSelection) {
+                setState(() {
+                  selectedFuel = newSelection.first;
+                  stations = [];
+                });
+                // فراخوانی تابع‌ها با مختصات (اگر پارامتر می‌گیرند)
+                if (selectedFuel == 'ev') {
+                  fetchEVStations();
+                } else if (selectedFuel == 'parking')
+                  fetchParkingData();
+                //else fetchPrices();
+              },
+            ),
+          ),
+
+          // ۱.۵. بخش انتخاب حالت نمایش (Map یا List)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'map',
+                  label: Text('Map View'),
+                  icon: Icon(Icons.map),
+                ),
+                ButtonSegment(
+                  value: 'list',
+                  label: Text('List View'),
+                  icon: Icon(Icons.list),
+                ),
+              ],
+              selected: {fuelViewMode},
+              onSelectionChanged: (Set<String> newSelection) {
+                setState(() {
+                  fuelViewMode = newSelection.first;
+                });
+              },
+            ),
+          ),
+
+          // 2. Button baraye Gereftan-e Location va Gheymat-ha
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            child: Column(
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.my_location),
+                  label: const Text("Find Stations Near Me/Enable Location Permission"),
+                  onPressed: () =>
+                      fetchPrices(), // Ba click in tabe ejra mishavad
+                ),
+
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                  icon: const Icon(Icons.settings),
+                  label: const Text("Open App Settings"),
+                  onPressed: _openAppSettings,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // نمایش بر اساس حالت انتخاب شده
+          if (fuelViewMode == 'map')
+            _buildProfessionalMap()
+          else
+            _buildPriceAlertSetter(),
+
+          if (fuelViewMode == 'list')
+            isLoading
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(top: 50.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: stations.length,
+                  itemBuilder: (context, index) {
+                    final s = stations[index];
+                    final double? priceValue = double.tryParse(
+                      s['price'].toString(),
+                    );
+                    final bool isCheap =
+                        priceValue != null && priceValue < 1.70;
+                    final facilities = getFacilities(s['lat'], s['lng']);
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: InkWell(
+                        onTap: () =>
+                            _openMap(s['lat'], s['lng']), //_showDetails(s),
+                        onLongPress: () => _showDetails(s),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(
+                            12.0,
+                          ), // کنترل کامل پدینگ دست خودمان است
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // بخش لوگو سمت چپ
+                              CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.blue.withOpacity(0.1),
+                                child: const Icon(
+                                  Icons.local_gas_station,
+                                  color: Colors.blue,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // بخش وسط (نام، آدرس، امکانات)
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            s['brand']?.toUpperCase() ??
+                                                s['name'],
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        _buildStatusBadge(s['isOpen']),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "${s['street']} ${s['houseNumber']}",
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        // _buildFacilityIcon(Icons.wc, s['id'], 'hasToilet'),
+                                        // const SizedBox(width: 4),
+                                        // _buildFacilityIcon(Icons.local_shipping, s['id'], 'isLKW'),
+                                        // const SizedBox(width: 4),
+                                        // _buildFacilityIcon(Icons.shopping_basket, s['id'], 'hasFood'),
+                                        if (facilities['wc'] == 1)
+                                          _buildIcon(Icons.wc, Colors.blue),
+                                        if (facilities['lkw'] == 1)
+                                          _buildIcon(
+                                            Icons.local_shipping,
+                                            Colors.orange,
+                                          ),
+                                        if (facilities['rest'] == 1)
+                                          _buildIcon(
+                                            Icons.restaurant,
+                                            Colors.red,
+                                          ),
+                                        if (facilities['play'] == 1)
+                                          _buildIcon(
+                                            Icons.child_care,
+                                            Colors.green,
+                                          ),
+                                        if (facilities['shop'] == 1)
+                                          _buildIcon(
+                                            Icons.shopping_basket,
+                                            Colors.brown,
+                                          ),
+                                        if (facilities['wash'] == 1)
+                                          _buildIcon(
+                                            Icons.local_car_wash,
+                                            Colors.cyan,
+                                          ),
+                                        const Spacer(),
+                                        Text(
+                                          "${s['dist']} km",
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (selectedFuel == 'parking')
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            // چک کن اگر فیلد وجود نداشت کرش نکند
+                                            color:
+                                                (s['free_slots'] != null &&
+                                                    s['free_slots'] is int &&
+                                                    s['free_slots'] > 5)
+                                                ? Colors.green
+                                                : Colors.orange,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            "Spaces: ${s['free_slots'] ?? 'N/A'}",
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "${s['price'] ?? 'Public'}",
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  else
+                                    // --- ظاهر پیش‌فرض برای بنزین، دیزل و EV ---
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
+                                      children: [
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              "${s['price']}",
+                                              style: TextStyle(
+                                                fontSize:
+                                                    18 *
+                                                    _fontScale, // اعمال بزرگ‌نمایی
+                                                fontWeight: FontWeight.bold,
+                                                color: selectedFuel == 'ev'
+                                                    ? Colors.blue
+                                                    : Colors.green,
+                                              ),
+                                            ),
+                                            if (selectedFuel !=
+                                                'ev') // فلش برای برقی نباشد
+                                              Icon(
+                                                isCheap
+                                                    ? Icons.arrow_downward
+                                                    : Icons.arrow_upward,
+                                                size: 16,
+                                                color: isCheap
+                                                    ? Colors.green
+                                                    : Colors.red,
+                                              ),
+                                          ],
+                                        ),
+                                        Text(
+                                          selectedFuel == 'ev' ? "KW" : "EUR",
+                                          style: const TextStyle(
+                                            fontSize: 9,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                  // --- دکمه مسیریابی (مشترک برای همه حالات) ---
+                                  const SizedBox(height: 4),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(
+                                      Icons.directions,
+                                      color: Colors.blue,
+                                      size: 28,
+                                    ),
+                                    onPressed: () =>
+                                        _openMap(s['lat'], s['lng']),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+          ],
+      ),
+      //),
+    );
+  }
+
+  // تابع کمکی برای برچسب باز/بسته
+  Widget _buildStatusBadge(bool? isOpen) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: isOpen == true
+            ? Colors.green.withOpacity(0.1)
+            : Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        isOpen == true ? "OPEN" : "CLOSED",
+        style: TextStyle(
+          color: isOpen == true ? Colors.green : Colors.red,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  // ۲. ویجت نقشه حرفه‌ای برای پارکینگ
+  Widget _buildParkingMap() {
+    if (stations.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 300,
+      child: FlutterMap(
+        options: MapOptions(
+          initialCenter: ll.LatLng(
+            stations[0]['lat'] as double,
+            stations[0]['lng'] as double,
+          ),
+          initialZoom: 13.0,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.tenken.adak',
+          ),
+
+          MarkerLayer(
+            markers: stations.map((s) {
+              return Marker(
+                width: 90,
+                height: 45,
+                point: ll.LatLng(s['lat'] as double, s['lng'] as double),
+                child: GestureDetector(
+                  onTap: () => _openMap(s['lat'] as double, s['lng'] as double),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        const BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.local_parking,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ۲. ویجت نقشه حرفه‌ای در بدنه اصلی (Tab سوخت)
+  Widget _buildProfessionalMap() {
+    if (stations.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 300,
+      child: FlutterMap(
+        options: MapOptions(
+          // اینجا دیگه ارور نمیده چون LatLng رو از پکیج میگیره نه از خودت
+          initialCenter: ll.LatLng(
+            stations[0]['lat'] as double,
+            stations[0]['lng'] as double,
+          ),
+          initialZoom: 13.0,
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'com.tenken.adak',
+          ),
+
+          MarkerLayer(
+            markers: stations.map((s) {
+              return Marker(
+                width: 90,
+                height: 45,
+                // حتماً از ll.LatLng استفاده کن که با پکیج تداخل نداشته باشد
+                point: ll.LatLng(s['lat'] as double, s['lng'] as double),
+                child: GestureDetector(
+                  // وقتی کاربر روی قیمت کلیک کند، این تابع اجرا می‌شود
+                  onTap: () => _openMap(s['lat'] as double, s['lng'] as double),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.blueAccent,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white, width: 2),
+                      boxShadow: [
+                        const BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        "€${s['price']}",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // این تابع جادویی برای فرار از ارور LatLng
+  dynamic dynamicLatLng(double lat, double lng) {
+    // این کد باعث میشه flutter_map فکر کنه داره LatLng واقعی میگیره
+    return Function.apply(MapOptions().initialCenter.runtimeType as Function, [
+      lat,
+      lng,
+    ]);
+  }
+
+  // ۳. طراحی حباب قیمت (دقیقاً شبیه Clever Tanken)
+  Widget _buildPriceMarker(String price, bool isOpen) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isOpen ? Colors.blue.shade700 : Colors.grey,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [const BoxShadow(color: Colors.black26, blurRadius: 4)],
+        border: Border.all(color: Colors.white, width: 2),
+      ),
+      child: Center(
+        child: Text(
+          "€$price",
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openAllStationsOnMap() async {
+    if (stations.isEmpty) return;
+
+    // ساختن لیست نقاط برای ارسال به گوگل مپ
+    // این لینک گوگل مپ را وادار می‌کند جستجوی پمپ بنزین را در آن منطقه انجام دهد
+    // یا پمپ بنزین‌های پیدا شده را هایلایت کند
+    final String query = Uri.encodeComponent("Gas Stations");
+    final url =
+        "https://www.google.com/maps/search/$query/@$userLat,$userLng,13z";
+
+    if (await canLaunchUrl(Uri.parse(url))) {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    }
+  }
+}

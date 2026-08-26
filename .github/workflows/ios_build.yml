@@ -1,0 +1,150 @@
+name: Build and Upload iOS App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      # ۱. دریافت کدها از GitHub
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # ۲. نصب جاوا
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # ۳. نصب فلاتر
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          architecture: x64
+
+      # ۴. پاک‌سازی کَش و پدهای قدیمی
+      - name: Clean Old Pods and Cache
+        run: |
+          flutter clean
+          rm -rf ios/Pods ios/Podfile.lock
+
+      # ۵. دریافت پکیج‌های فلاتر
+      - name: Install dependencies
+        run: flutter pub get
+
+      # ۶. پیکربندی سیستم
+      - name: Configure System
+        run: |
+          flutter config --no-enable-swift-package-manager
+          git config --global --unset-all http.https://github.com/.extraheader || true
+
+      # ۷. اجبار Xcode به استفاده از حالت Manual
+      - name: Force Manual Signing in Xcode
+        run: |
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' ios/Runner.xcodeproj/project.pbxproj
+          sed -i '' 's/"Apple Development"/"Apple Distribution"/g' ios/Runner.xcodeproj/project.pbxproj
+
+      # ۸. نصب Certificate در Keychain
+      - name: Install Certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+
+      # ۹. نصب Provisioning Profile
+      - name: Install Provisioning Profile
+        uses: apple-actions/download-provisioning-profiles@v3
+        with:
+          bundle-id: 'com.smartsoftware.tankfinder'
+          profile-type: 'IOS_APP_STORE'
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+
+      # ۱۰. استخراج هوشمند Team ID و Profile Name از فایل اپل و ساخت Plist
+      - name: Generate ExportOptions.plist dynamically
+        run: |
+          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision | head -n 1)
+          security cms -D -i "$PROFILE_PATH" > profile.plist
+          TEAM_ID=$(/usr/libexec/PlistBuddy -c "Print TeamIdentifier:0" profile.plist)
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" profile.plist)
+          rm profile.plist
+          
+          echo "TEAM_ID=$TEAM_ID" >> $GITHUB_ENV
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
+          
+          cat <<EOF > ios/ExportOptions.plist
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store-connect</string>
+              <key>teamID</key>
+              <string>$TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>com.smartsoftware.tankfinder</key>
+                  <string>$PROFILE_NAME</string>
+              </dict>
+              <key>stripSwiftSymbols</key>
+              <true/>
+              <key>manageAppVersionAndBuildNumber</key>
+              <false/>
+          </dict>
+          </plist>
+          EOF
+
+   # ۱۱. کامپایل کدهای فلاتر بدون درگیری با امضای اپل (فقط تولید فریم‌ورک‌ها)
+      - name: Build Flutter iOS (Unsigned)
+        run: flutter build ios --release --no-codesign
+
+      # ۱۲. ساخت آرشیو با Xcode
+      - name: Archive with Xcode
+        run: |
+          xcodebuild archive \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            DEVELOPMENT_TEAM="${{ env.TEAM_ID }}" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.PROFILE_NAME }}" \
+            CODE_SIGN_STYLE="Manual" \
+            CODE_SIGN_IDENTITY="Apple Distribution"
+
+      # ۱۳. خروجی نهایی IPA
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/ios/archive/Runner.xcarchive \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            -exportPath build/ios/ipa
+      # ۱۴. ذخیره مسیر فایل IPA
+      - name: Find IPA File Path
+        run: echo "IPA_PATH=$(find build/ios/ipa -name '*.ipa' | head -n 1)" >> $GITHUB_ENV
+
+      # ۱۵. آپلود فایل IPA به عنوان Artifact
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-ipa
+          path: ${{ env.IPA_PATH }}
+
+      # ۱۶. آپلود نسخه به TestFlight / App Store Connect
+      - name: Upload App to TestFlight
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-path: ${{ env.IPA_PATH }}
+          issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}

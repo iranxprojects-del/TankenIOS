@@ -1,0 +1,77 @@
+# تعیین حداقل نسخه iOS
+platform :ios, '15.0'
+
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  File.foreach(generated_xcode_build_settings_path) do |line|
+    matches = line.match(/FLUTTER_ROOT\=(.*)/)
+    return matches[1].strip if matches
+  end
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig then run flutter pub get"
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+prepare_react_native_project if respond_to?(:prepare_react_native_project)
+
+target 'Runner' do
+  use_frameworks!
+  use_modular_headers!
+
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    # ۱. تنظیمات استاندارد فلاتر
+    flutter_additional_ios_build_settings(target)
+    
+    # ۲. تنظیم نسخه iOS و غیرفعال‌سازی امضا برای تمام Pods (حل قطعی خطای Provisioning Profile)
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ""
+      config.build_settings['CODE_SIGNING_REQUIRED'] = "NO"
+      config.build_settings['CODE_SIGNING_ALLOWED'] = "NO"
+      config.build_settings['PROVISIONING_PROFILE_SPECIFIER'] = ""
+    end
+
+    # ۳. راه‌حل BoringSSL-GRPC
+    if target.name == 'BoringSSL-GRPC'
+      target.source_build_phase.files.each do |file|
+        if file.settings && file.settings['COMPILER_FLAGS']
+          flags = file.settings['COMPILER_FLAGS'].split
+          flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
+          flags.reject! { |flag| flag == '-G' } 
+          file.settings['COMPILER_FLAGS'] = flags.join(' ')
+        end
+      end
+    end
+  end
+
+  # ۴. پچ جامع تمام فایل‌های basic_seq.h در gRPC-Core و gRPC-C++ برای Xcode 16+
+  Dir.glob("#{installer.sandbox.root}/**/basic_seq.h").each do |basic_seq_path|
+    if File.exist?(basic_seq_path)
+      content = File.read(basic_seq_path)
+      if content.include?('Traits::template CallSeqFactory(')
+        patched_content = content.gsub('Traits::template CallSeqFactory(', 'Traits::template CallSeqFactory<>(')
+        File.write(basic_seq_path, patched_content)
+      end
+    end
+  end
+end
