@@ -632,9 +632,10 @@ packages:
   latlong2:
     dependency: "direct main"
     description:
-      path: dart-latlong
-      relative: true
-    source: path
+      name: latlong2
+      sha256: "98227922caf49e6056f91b6c56945ea1c7b166f28ffcd5fb8e72fc0b453cc8fe"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.9.1"
   leak_tracker:
     dependency: transitive

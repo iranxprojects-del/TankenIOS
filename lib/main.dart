@@ -29,6 +29,20 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:permission_handler/permission_handler.dart';
 
+/// Parses the 2MB offline station file off the UI isolate.
+Map<String, dynamic> parseOfflineStationsJson(String jsonString) {
+  final List<dynamic> list = json.decode(jsonString) as List<dynamic>;
+  final Map<String, dynamic> result = <String, dynamic>{};
+  for (final s in list) {
+    if (s is! Map) continue;
+    final lat = s['lat'];
+    final lng = s['lng'];
+    if (lat is! num || lng is! num) continue;
+    result['${lat.toStringAsFixed(3)}_${lng.toStringAsFixed(3)}'] = s;
+  }
+  return result;
+}
+
 class MaintenanceItem {
   final String key;
   final String title;
@@ -101,46 +115,50 @@ class MaintenanceItem {
 }
 
 void main() async {
-  // ۱. مقداردهی اولیه‌ی نیتیو فلاتر
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ۲. مقداردهی فایربیس با کنترل خطا
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    debugPrint('Firebase init error: $e');
-  }
-
-  // ۳. مقداردهی دیتابیس Hive با کنترل خطا
+  // Hive is required for language/settings on the first frame.
   try {
     await Hive.initFlutter();
-    await Hive.openBox('settingsBox');
-    await Hive.openBox('carServiceBox');
-    await Hive.openBox('searchBox');
-    await Hive.openBox('oilBox');
+    await Future.wait([
+      Hive.openBox('settingsBox'),
+      Hive.openBox('carServiceBox'),
+      Hive.openBox('searchBox'),
+      Hive.openBox('oilBox'),
+    ]);
   } catch (e) {
     debugPrint('Hive init error: $e');
   }
 
-  // ۴. مقداردهی سرویس اعلان
-  try {
-    await NotificationService.init();
-  } catch (e) {
-    debugPrint('Notification init error: $e');
-  }
-
-  // ۵. اجرای حتمی و فوری برنامه (جلوگیری قطعی از صفحه سفید)
   runApp(const AdakTenkenPro());
 
-  // ۶. کارهای سنگین، نیازمند شبکه و تبلیغات پس از بالا آمدن UI انجام شوند (بدون await)
+  // Heavy services after the first frame is scheduled so the UI is not blocked.
+  _warmUpBackgroundServices();
+}
+
+void _warmUpBackgroundServices() {
+  AppTimelineManager().hydrateFromLocalCache();
+
   AppTimelineManager().initializeAndSync().catchError((e) {
     debugPrint('Timeline sync error: $e');
   });
-  
-  AppAdManager().loadInterstitialAd();
-  AppAdManager().loadRewardedAd();
+
+  Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  ).catchError((e) {
+    debugPrint('Firebase init error: $e');
+  });
+
+  NotificationService.init().catchError((e) {
+    debugPrint('Notification init error: $e');
+  });
+
+  AppAdManager().ensureSdkReady().then((_) {
+    AppAdManager().loadInterstitialAd();
+    AppAdManager().loadRewardedAd();
+  }).catchError((e) {
+    debugPrint('MobileAds init error: $e');
+  });
 }
 
 
@@ -214,7 +232,6 @@ class _FuelDashboardState extends State<FuelDashboard> {
 
   bool _isAdLoaded = false;
   final MapController _mapController = MapController();
-  Key _mapKey = UniqueKey();
   Map<String, dynamic>? oilAnalysis; // متغیری برای ذخیره تحلیل نفت
   List<MaintenanceItem> maintenanceItems = [];
   List<String> serviceCategories = [
@@ -244,23 +261,53 @@ class _FuelDashboardState extends State<FuelDashboard> {
   List<Map<String, String>> placeSuggestions = [];
   bool isSearchLoading = false;
 
+  bool _isBannerLoading = false;
+
   void _loadBannerAd() {
-    _bannerAd = BannerAd(
-      adUnitId: AppAdManager().bannerUnitId,//'ca-app-pub-3940256099942544/6300978111', // آیدی تست بنر گوگل
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) {
-          if (mounted) {
-            setState(() { _isAdLoaded = true; });
-          }
-        },
-        onAdFailedToLoad: (ad, error) {
-          debugPrint('BannerAd failed to load: $error');
-          ad.dispose();
-        },
-      ),
-    )..load();
+    if (PurchaseManager().isPremiumUser.value) return;
+    if (_isAdLoaded) return;
+
+    AppAdManager().ensureSdkReady().then((_) {
+      if (!mounted || _isAdLoaded) return;
+      _bannerAd?.dispose();
+      _bannerAd = BannerAd(
+        adUnitId: AppAdManager().bannerUnitId,
+        size: AdSize.banner,
+        request: const AdRequest(),
+        listener: BannerAdListener(
+          onAdLoaded: (_) {
+            if (mounted) {
+              setState(() {
+                _isAdLoaded = true;
+                _isBannerLoading = false;
+              });
+            }
+          },
+          onAdFailedToLoad: (ad, error) {
+            debugPrint('BannerAd failed to load: $error');
+            ad.dispose();
+            if (mounted) {
+              setState(() {
+                _isAdLoaded = false;
+                _isBannerLoading = false;
+                _bannerAd = null;
+              });
+            }
+            Future<void>.delayed(const Duration(seconds: 6), () {
+              if (mounted && !_isAdLoaded) _loadBannerAd();
+            });
+          },
+        ),
+      )..load();
+      if (mounted) {
+        setState(() => _isBannerLoading = true);
+      }
+    }).catchError((e) {
+      debugPrint('Banner SDK error: $e');
+      Future<void>.delayed(const Duration(seconds: 6), () {
+        if (mounted && !_isAdLoaded) _loadBannerAd();
+      });
+    });
   }
 
   @override
@@ -638,6 +685,25 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
 }
 
 
+  Future<Position> _getFastPosition({bool preferFresh = false}) async {
+    if (!preferFresh) {
+      try {
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null) return last;
+      } catch (_) {}
+    }
+    try {
+      return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+        timeLimit: const Duration(seconds: 6),
+      );
+    } catch (_) {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) return last;
+      rethrow;
+    }
+  }
+
   Future<void> fetchPrices({double? lat, double? lng}) async {
 
     if (!AppLicenseManager.isFeatureActive('oil_price')) {
@@ -675,9 +741,7 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
         }
 
         // 2. Gereftan-e location-e daghigh
-        Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-        );
+        Position position = await _getFastPosition();
 
         searchLat = position.latitude;
         searchLng = position.longitude;
@@ -694,7 +758,7 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
           //"https://creativecommons.tankerkoenig.de/json/list.php?lat=$searchLat&lng=$searchLng&rad=10&sort=price&type=$selectedFuel&apikey=$apiKey";
           "https://creativecommons.tankerkoenig.de/json/list.php?lat=$searchLat&lng=$searchLng&rad=$searchRadius&sort=price&type=$selectedFuel&apikey=$apiKey";
 
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['ok'] == true) {
@@ -942,9 +1006,7 @@ Future<void> _searchNearby() async {
     }
 
     // گرفتن موقعیت
-    Position position = await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
-    );
+    Position position = await _getFastPosition(preferFresh: true);
 
     userLat = position.latitude;
     userLng = position.longitude;
@@ -1022,15 +1084,37 @@ Future<void> _searchNearby() async {
     // 📺 فاز ۳ (روز ۶۰ تا ۹۰): نمایش ویدیو طولانی قبل از باز شدن نقشه
     if (!isPremium && tier == 3) {
       AppAdManager().showNavigationRewardedAd(() async {
-        await _showNavigateWithSheet(destLat: lat, destLng: lng);
+        await _openNavigation(destLat: lat, destLng: lng);
       });
       return; // توقف اجرای خطوط بعدی تا زمان اتمام تبلیغ
     }
 
-    await _showNavigateWithSheet(destLat: lat, destLng: lng);
+    await _openNavigation(destLat: lat, destLng: lng);
   }
 
   bool get _hasValidUserLocation => userLat != 0.0 && userLng != 0.0;
+
+  bool get _isIosDevice => !kIsWeb && Platform.isIOS;
+
+  Future<void> _openNavigation({
+    double? destLat,
+    double? destLng,
+    String? searchQuery,
+  }) async {
+    if (_isIosDevice) {
+      await _showNavigateWithSheet(
+        destLat: destLat,
+        destLng: destLng,
+        searchQuery: searchQuery,
+      );
+      return;
+    }
+    await _launchGoogleMaps(
+      destLat: destLat,
+      destLng: destLng,
+      searchQuery: searchQuery,
+    );
+  }
 
   Future<bool> _tryLaunchUrl(Uri url) async {
     try {
@@ -1115,21 +1199,34 @@ Future<void> _searchNearby() async {
     } else {
       final dest = '$destLat,$destLng';
       final origin = _hasValidUserLocation ? '$userLat,$userLng' : null;
-      urls = [
-        Uri.parse(
-          origin != null
-              ? 'comgooglemaps://?saddr=$origin&daddr=$dest&directionsmode=driving'
-              : 'comgooglemaps://?daddr=$dest&directionsmode=driving',
-        ),
-        Uri.parse('google.navigation:q=$dest&mode=d'),
-        Uri.parse('geo:$dest?q=$dest'),
-        Uri.https('www.google.com', '/maps/dir/', {
-          'api': '1',
-          if (origin != null) 'origin': origin,
-          'destination': dest,
-          'travelmode': 'driving',
-        }),
-      ];
+      if (!kIsWeb && Platform.isAndroid) {
+        urls = [
+          Uri.parse('google.navigation:q=$dest&mode=d'),
+          Uri.parse('geo:$dest?q=$dest'),
+          Uri.https('www.google.com', '/maps/dir/', {
+            'api': '1',
+            if (origin != null) 'origin': origin,
+            'destination': dest,
+            'travelmode': 'driving',
+          }),
+        ];
+      } else {
+        urls = [
+          Uri.parse(
+            origin != null
+                ? 'comgooglemaps://?saddr=$origin&daddr=$dest&directionsmode=driving'
+                : 'comgooglemaps://?daddr=$dest&directionsmode=driving',
+          ),
+          Uri.parse('google.navigation:q=$dest&mode=d'),
+          Uri.parse('geo:$dest?q=$dest'),
+          Uri.https('www.google.com', '/maps/dir/', {
+            'api': '1',
+            if (origin != null) 'origin': origin,
+            'destination': dest,
+            'travelmode': 'driving',
+          }),
+        ];
+      }
     }
 
     final opened = await _launchFirstAvailable(urls);
@@ -1360,19 +1457,12 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
 
   Future<void> loadOfflineData() async {
     try {
-      String jsonString = await rootBundle.loadString(
+      final String jsonString = await rootBundle.loadString(
         'assets/germany_stations.json',
       );
-      List<dynamic> list = json.decode(jsonString);
-
-      // تبدیل لیست به Map برای دسترسی سریع با کلید مختصات
-      // کلید: "lat_lng" با دقت ۳ رقم اعشار برای خطای جزیی GPS
-      for (var s in list) {
-        String key =
-            "${s['lat'].toStringAsFixed(3)}_${s['lng'].toStringAsFixed(3)}";
-        offlineStations[key] = s;
-      }
-      setState(() {});
+      final parsed = await compute(parseOfflineStationsJson, jsonString);
+      if (!mounted) return;
+      offlineStations = parsed;
     } catch (e) {
       print("Error loading offline data: $e");
     }
@@ -1381,21 +1471,14 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
   @override
   void initState() {
     super.initState();
-    _loadBannerAd();
-    loadOfflineData(); // لود کردن دیتای ۱۸ هزار ایستگاه
-    _loadSavedCarModel();
-    _loadMaintenanceData();
-    _loadSearchHistory();
-    _loadAnalysisData(); // تابعی که قیمت نفت رو میگیره و تحلیل میکنه
-    _loadHistory();
-    _loadEmailSettings();
-    _checkThreeMonthMileageReminder();
+    AppTimelineManager().hydrateFromLocalCache();
 
     // --- کدهای جدید: خواندن آخرین لوکیشن از حافظه ---
     var settingsBox = Hive.box('settingsBox');
     userLat = settingsBox.get('lastLat', defaultValue: 52.5200);
     userLng = settingsBox.get('lastLng', defaultValue: 13.4050);
     selectedStationId = settingsBox.get('selectedStationId');
+    selectedFuel = settingsBox.get('lastSelectedFuel', defaultValue: 'diesel');
     // ---------------------------------------------
 
      if (!kIsWeb) {
@@ -1441,19 +1524,31 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
         }
       });
     }
-    selectedFuel = settingsBox.get('lastSelectedFuel', defaultValue: 'diesel');
-   
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-    _checkNotificationPermissions();
-    //_checkNotificationPermissionOnFirstLaunch();
-    _searchStations(userLat, userLng);
-    _checkAndForceUpdate();
-  });
-
-  if (AppLicenseManager.shouldShowAds()) {
+      _searchStations(userLat, userLng);
       _loadBannerAd();
-    }  
+      _scheduleDeferredStartupWork();
+    });
+  }
 
+  void _scheduleDeferredStartupWork() {
+    Future<void>.delayed(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _loadSearchHistory();
+      _loadHistory();
+      _loadSavedCarModel();
+      _loadEmailSettings();
+      _loadMaintenanceData();
+    });
+    Future<void>.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      loadOfflineData();
+      _loadAnalysisData();
+      _checkThreeMonthMileageReminder();
+      _checkNotificationPermissions();
+      _checkAndForceUpdate();
+    });
   }
 
   Future<void> _loadHistory() async {
@@ -2016,7 +2111,7 @@ Future<void> _refreshAllMaintenanceReminders() async {
     double searchLat = lat ?? 0.0;
     double searchLng = lng ?? 0.0;
     if (lat == null || lng == null) {
-      Position position = await Geolocator.getCurrentPosition();
+      Position position = await _getFastPosition();
       searchLat = position.latitude;
       searchLng = position.longitude;
     }
@@ -2114,7 +2209,7 @@ Future<void> _openGoogleMapsForParkingFallback({
     query = 'parking near me';
   }
 
-  await _showNavigateWithSheet(
+  await _openNavigation(
     destLat: lat,
     destLng: lng,
     searchQuery: query,
@@ -2139,7 +2234,7 @@ Future<void> _openGoogleMapsForParkingFallback({
   // اگر مختصات پاس داده نشده باشد، سعی می‌کنیم لوکیشن فعلی دستگاه را بگیریم
   if ((lat == null || lng == null) && (postalCode == null || postalCode.isEmpty) && (cityName == null || cityName.isEmpty)) {
     try {
-      Position position = await Geolocator.getCurrentPosition();
+      Position position = await _getFastPosition();
       searchLat = position.latitude;
       searchLng = position.longitude;
       isCurrentLocation = true; // مشخص می‌کنیم که جستجو بر اساس موقعیت فعلی بوده است
@@ -3142,28 +3237,25 @@ Widget build(BuildContext context) {
                 
                   if (AppTimelineManager().currentTier >= 1) ...[
                      _buildBottomPremiumBanner(context, widget.currentLang),
-                    if (_isAdLoaded && _bannerAd != null) ...[
-                      
+                    if (_isAdLoaded && _bannerAd != null)
                       Container(
                         width: _bannerAd!.size.width.toDouble(),
                         height: _bannerAd!.size.height.toDouble(),
                         margin: const EdgeInsets.symmetric(vertical: 2),
                         child: AdWidget(ad: _bannerAd!),
-                      ),
-                    ] else ...[
-                      // این کادر کوچک تا زمان لود شدن کامل تبلیغ از اینترنت نشان داده می‌شود
+                      )
+                    else
                       Container(
                         width: double.infinity,
                         height: 50,
                         color: Colors.grey.shade50,
                         alignment: Alignment.center,
                         child: const SizedBox(
-                          width: 20, 
-                          height: 20, 
+                          width: 20,
+                          height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       ),
-                    ],
                   ],
                 ],
               );
@@ -4014,6 +4106,7 @@ Widget _buildEmailNotificationOption() {
 
     return SizedBox(
       height: 300,
+      child: RepaintBoundary(
       child: FlutterMap(
         options: MapOptions(
           initialCenter: ll.LatLng(
@@ -4026,10 +4119,12 @@ Widget _buildEmailNotificationOption() {
           TileLayer(
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.tenken.adak',
+            keepBuffer: 2,
+            panBuffer: 1,
           ),
 
           MarkerLayer(
-            markers: stations.map((s) {
+            markers: (stations.length > 30 ? stations.take(30) : stations).map((s) {
               return Marker(
                 width: 90,
                 height: 45,
@@ -4063,15 +4158,19 @@ Widget _buildEmailNotificationOption() {
           ),
         ],
       ),
+      ),
     );
   }
 
 Widget _buildProfessionalMap() {
+  final List mapStations = stations.length > 30
+      ? stations.take(30).toList()
+      : stations;
+
   return SizedBox(
     height: 300 * (_fontScale > 1.2 ? 1.1 : 1.0),
+    child: RepaintBoundary(
     child: FlutterMap(
-      // این کلید باعث میشه با تغییر لوکیشن، نقشه بمیره و دوباره زنده بشه (Force Rebuild)
-      key: _mapKey, 
       mapController: _mapController,
       options: MapOptions(
         initialCenter: ll.LatLng(userLat, userLng),
@@ -4081,10 +4180,11 @@ Widget _buildProfessionalMap() {
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.tenken.adak',
+          keepBuffer: 2,
+          panBuffer: 1,
         ),
         MarkerLayer(
           markers: [
-            // مارکر مکان فعلی خودت (نقطه قرمز)
             Marker(
               width: 25 * _fontScale,
               height: 25 * _fontScale,
@@ -4099,12 +4199,11 @@ Widget _buildProfessionalMap() {
               ),
             ),
 
-            // مارکر ایستگاه‌ها
-            if (stations.isNotEmpty)
-              ...stations.map((s) {
+            if (mapStations.isNotEmpty)
+              ...mapStations.map((s) {
                 return Marker(
-                  width: 90 * _fontScale,
-                  height: 45 * _fontScale,
+                  width: 72 * _fontScale,
+                  height: 36 * _fontScale,
                   point: ll.LatLng(s['lat'] as double, s['lng'] as double),
                   child: GestureDetector(
                     onTap: () => _openMap(s['lat'] as double, s['lng'] as double),
@@ -4113,7 +4212,6 @@ Widget _buildProfessionalMap() {
                         color: Colors.blueAccent,
                         borderRadius: BorderRadius.circular(10 * _fontScale),
                         border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                       ),
                       child: Center(
                         child: Text(
@@ -4128,10 +4226,11 @@ Widget _buildProfessionalMap() {
                     ),
                   ),
                 );
-              }).toList(),
+              }),
           ],
         ),
       ],
+    ),
     ),
   );
 }

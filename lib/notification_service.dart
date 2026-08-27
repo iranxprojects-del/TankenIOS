@@ -177,7 +177,7 @@ class NotificationService {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/launcher_icon');
 
-    const DarwinInitializationSettings initializationSettingsDarwin =
+    final DarwinInitializationSettings initializationSettingsDarwin =
         DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
@@ -200,7 +200,7 @@ class NotificationService {
       ],
     );
 
-    const InitializationSettings initializationSettings = InitializationSettings(
+    final InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsDarwin,
     );
@@ -246,7 +246,6 @@ class NotificationService {
     await androidImplementation?.createNotificationChannel(serviceChannel);
 
     await _configureLocalTimeZone();
-    await requestPermission();
   }
 
   static Future<void> cancelNotification(int id) async {

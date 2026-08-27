@@ -230,6 +230,12 @@ class AppAdManager {
 
   RewardedAd? _rewardedAd;
   bool _isRewardedLoaded = false;
+  Future<InitializationStatus>? _sdkInit;
+
+  Future<void> ensureSdkReady() async {
+    _sdkInit ??= MobileAds.instance.initialize();
+    await _sdkInit;
+  }
 
   void initAdUnits() {
     if (!AppTimelineManager().isTestingMode) { // real mode 
@@ -408,7 +414,24 @@ class AppTimelineManager {
     calculateCurrentStatus();
   }
 
+  /// Local Hive only — no network. Call before first frame so banner/tier UI is correct.
+  void hydrateFromLocalCache() {
+    if (!Hive.isBoxOpen('settingsBox')) return;
+    var box = Hive.box('settingsBox');
+    String? localInstallStr = box.get('installDate');
+    String? localPremiumStr = box.get('premiumPurchaseDate');
+    String? localFallbackStr = box.get('postPremiumFallbackDate');
+
+    if (localInstallStr != null) firstInstallDate = DateTime.parse(localInstallStr);
+    if (localPremiumStr != null) premiumPurchaseDate = DateTime.parse(localPremiumStr);
+    if (localFallbackStr != null) postPremiumFallbackDate = DateTime.parse(localFallbackStr);
+
+    firstInstallDate ??= DateTime.now();
+    calculateCurrentStatus();
+  }
+
   Future<void> initializeAndSync() async {
+    hydrateFromLocalCache();
     var box = Hive.box('settingsBox');
     
     // ۱. چتر امنیتی اول: خواندن سریع داده‌ها از کش محلی (Hive) تا برنامه معطل اینترنت نماند
