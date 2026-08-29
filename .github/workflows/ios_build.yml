@@ -67,7 +67,7 @@ jobs:
           profile-type: 'IOS_APP_STORE'
           issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
 
       # ۱۰. استخراج هوشمند Team ID و Profile Name از فایل اپل و ساخت Plist
       - name: Generate ExportOptions.plist dynamically
@@ -140,11 +140,11 @@ jobs:
           name: ios-build-ipa
           path: ${{ env.IPA_PATH }}
 
-      # ۱۶. آپلود نسخه به TestFlight / App Store Connect
+    # ۱۶. آپلود نسخه به TestFlight / App Store Connect
       - name: Upload App to TestFlight
         uses: apple-actions/upload-testflight-build@v1
         with:
           app-path: ${{ env.IPA_PATH }}
           issuer-id: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           api-key-id: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          api-private-key: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY_BASE64 }}
