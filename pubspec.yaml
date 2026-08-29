@@ -33,6 +33,7 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_map: ^7.0.2
   google_mobile_ads: ^8.0.0
+  app_tracking_transparency: ^2.0.6
   #flutter_map: ^8.3.0
   in_app_purchase: ^3.1.13
   firebase_core: ^2.24.2

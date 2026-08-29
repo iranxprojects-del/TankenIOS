@@ -8,6 +8,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 //import 'app_timeline_manager.dart';
 
 
@@ -217,12 +218,29 @@ class AppAdManager {
   static const bool enableInterstitialAd = true;
   static const bool enableRewardedAd = true;
 
-  // شناسه‌های تست گوگل (برای ریلیز شناسه‌های خود را جایگزین کنید)
-  static String _bannerUnitId = 'ca-app-pub-3940256099942544/6300978111';
-  static  String _interstitialUnitId = 'ca-app-pub-3940256099942544/1033173712';// test interstitial
-  static  String _rewardedUnitId = 'ca-app-pub-3940256099942544/5224354917';
-  
-  //eutravel_rewarded ca-app-pub-1909436077319120/4524576660
+  // Google official test ad units (platform-specific)
+  static const String _androidTestBanner = 'ca-app-pub-3940256099942544/6300978111';
+  static const String _androidTestInterstitial = 'ca-app-pub-3940256099942544/1033173712';
+  static const String _androidTestRewarded = 'ca-app-pub-3940256099942544/5224354917';
+  static const String _iosTestBanner = 'ca-app-pub-3940256099942544/2934735716';
+  static const String _iosTestInterstitial = 'ca-app-pub-3940256099942544/4411468910';
+  static const String _iosTestRewarded = 'ca-app-pub-3940256099942544/1712485313';
+
+  // Android production ad units
+  static const String _androidProdBanner = 'ca-app-pub-1909436077319120/7037632312';
+  static const String _androidProdInterstitial = 'ca-app-pub-1909436077319120/5488626786';
+  static const String _androidProdRewarded = 'ca-app-pub-1909436077319120/3065075207';
+
+  // iOS production ad units — create in AdMob (Apps > iOS app > Ad units), then set ready flag.
+  static const bool _iosProductionAdUnitsReady = false;
+  static const String _iosProdBanner = 'ca-app-pub-1909436077319120/0000000000';
+  static const String _iosProdInterstitial = 'ca-app-pub-1909436077319120/0000000000';
+  static const String _iosProdRewarded = 'ca-app-pub-1909436077319120/0000000000';
+
+  static String _bannerUnitId = _androidTestBanner;
+  static String _interstitialUnitId = _androidTestInterstitial;
+  static String _rewardedUnitId = _androidTestRewarded;
+
   String get bannerUnitId => _bannerUnitId;
 
   InterstitialAd? _interstitialAd;
@@ -232,16 +250,64 @@ class AppAdManager {
   bool _isRewardedLoaded = false;
   Future<InitializationStatus>? _sdkInit;
 
+  Future<void> _requestTrackingAuthorizationIfNeeded() async {
+    if (!Platform.isIOS) return;
+    try {
+      final status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+    } catch (e) {
+      debugPrint('ATT request failed: $e');
+    }
+  }
+
   Future<void> ensureSdkReady() async {
-    _sdkInit ??= MobileAds.instance.initialize();
+    if (_sdkInit != null) {
+      await _sdkInit;
+      return;
+    }
+    _sdkInit = _initializeMobileAds();
     await _sdkInit;
   }
 
+  Future<InitializationStatus> _initializeMobileAds() async {
+    await _requestTrackingAuthorizationIfNeeded();
+    return MobileAds.instance.initialize();
+  }
+
   void initAdUnits() {
-    if (!AppTimelineManager().isTestingMode) { // real mode 
-      _interstitialUnitId = 'ca-app-pub-1909436077319120/5488626786'; // real interstitial 
-      _rewardedUnitId = 'ca-app-pub-1909436077319120/3065075207';
-      _bannerUnitId = 'ca-app-pub-1909436077319120/7037632312'; // واقعی: Tanken_Banner_buttom
+    final useTestAds = kDebugMode || AppTimelineManager().isTestingMode;
+    final isIos = Platform.isIOS;
+
+    if (useTestAds) {
+      _bannerUnitId = isIos ? _iosTestBanner : _androidTestBanner;
+      _interstitialUnitId = isIos ? _iosTestInterstitial : _androidTestInterstitial;
+      _rewardedUnitId = isIos ? _iosTestRewarded : _androidTestRewarded;
+      return;
+    }
+
+    if (isIos) {
+      if (useTestAds || !_iosProductionAdUnitsReady) {
+        _bannerUnitId = _iosTestBanner;
+        _interstitialUnitId = _iosTestInterstitial;
+        _rewardedUnitId = _iosTestRewarded;
+        if (!useTestAds && kReleaseMode) {
+          debugPrint(
+            'AdMob iOS: using test ad units until _iosProductionAdUnitsReady is true '
+            'and real iOS ad unit IDs are set in purchase_manager.dart',
+          );
+        }
+      } else {
+        _bannerUnitId = _iosProdBanner;
+        _interstitialUnitId = _iosProdInterstitial;
+        _rewardedUnitId = _iosProdRewarded;
+      }
+    } else {
+      _bannerUnitId = _androidProdBanner;
+      _interstitialUnitId = _androidProdInterstitial;
+      _rewardedUnitId = _androidProdRewarded;
     }
   }
 
