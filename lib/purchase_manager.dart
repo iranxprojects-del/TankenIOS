@@ -226,16 +226,15 @@ class AppAdManager {
   static const String _iosTestInterstitial = 'ca-app-pub-3940256099942544/4411468910';
   static const String _iosTestRewarded = 'ca-app-pub-3940256099942544/1712485313';
 
-  // Android production ad units
+  // Android production ad units (Tanken Android)
   static const String _androidProdBanner = 'ca-app-pub-1909436077319120/7037632312';
   static const String _androidProdInterstitial = 'ca-app-pub-1909436077319120/5488626786';
   static const String _androidProdRewarded = 'ca-app-pub-1909436077319120/3065075207';
 
-  // iOS production ad units — create in AdMob (Apps > iOS app > Ad units), then set ready flag.
-  static const bool _iosProductionAdUnitsReady = false;
-  static const String _iosProdBanner = 'ca-app-pub-1909436077319120/0000000000';
-  static const String _iosProdInterstitial = 'ca-app-pub-1909436077319120/0000000000';
-  static const String _iosProdRewarded = 'ca-app-pub-1909436077319120/0000000000';
+  // iOS production ad units (Tanken iOS)
+  static const String _iosProdBanner = 'ca-app-pub-1909436077319120/5451087430';
+  static const String _iosProdInterstitial = 'ca-app-pub-1909436077319120/8707806167';
+  static const String _iosProdRewarded = 'ca-app-pub-1909436077319120/3539239961';
 
   static String _bannerUnitId = _androidTestBanner;
   static String _interstitialUnitId = _androidTestInterstitial;
@@ -289,21 +288,9 @@ class AppAdManager {
     }
 
     if (isIos) {
-      if (useTestAds || !_iosProductionAdUnitsReady) {
-        _bannerUnitId = _iosTestBanner;
-        _interstitialUnitId = _iosTestInterstitial;
-        _rewardedUnitId = _iosTestRewarded;
-        if (!useTestAds && kReleaseMode) {
-          debugPrint(
-            'AdMob iOS: using test ad units until _iosProductionAdUnitsReady is true '
-            'and real iOS ad unit IDs are set in purchase_manager.dart',
-          );
-        }
-      } else {
-        _bannerUnitId = _iosProdBanner;
-        _interstitialUnitId = _iosProdInterstitial;
-        _rewardedUnitId = _iosProdRewarded;
-      }
+      _bannerUnitId = _iosProdBanner;
+      _interstitialUnitId = _iosProdInterstitial;
+      _rewardedUnitId = _iosProdRewarded;
     } else {
       _bannerUnitId = _androidProdBanner;
       _interstitialUnitId = _androidProdInterstitial;

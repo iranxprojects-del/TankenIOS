@@ -1,6 +1,7 @@
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:flutter/material.dart';
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
@@ -224,7 +225,16 @@ class _FuelDashboardState extends State<FuelDashboard> {
   String serviceView = 'history'; // مقدار پیش‌فرض: تاریخچه سرویس
   double userLat = 52.5200; // مقدار پیش‌فرض (برلین)
   double userLng = 13.4050;
-  double searchRadius = 10.0; // شعاع جستجو به کیلومتر
+  double searchRadius = 5.0; // شعاع جستجوی لیست؛ نقشه همیشه ۵ کیلومتر نشان می‌دهد
+  static const double _mapVisibleRadiusKm = 5.0;
+  List _mapStations = [];
+  double _mapCenterLat = 52.5200;
+  double _mapCenterLng = 13.4050;
+  Timer? _mapMoveDebounce;
+  bool _isLoadingMapStations = false;
+  double? _pendingMapLoadLat;
+  double? _pendingMapLoadLng;
+  String? _pendingMapLoadKind;
   BannerAd? _bannerAd;
   bool enableEmailReminders = false;
   TextEditingController _emailController = TextEditingController();
@@ -257,9 +267,11 @@ class _FuelDashboardState extends State<FuelDashboard> {
   String fuelViewMode = 'map'; // 'map' or 'list'
   String parkingViewMode = 'map'; // 'map' or 'list'
   TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   List<String> searchHistory = [];
   List<Map<String, String>> placeSuggestions = [];
   bool isSearchLoading = false;
+  bool _useCompactMapSearch = false;
 
   bool _isBannerLoading = false;
 
@@ -315,7 +327,9 @@ class _FuelDashboardState extends State<FuelDashboard> {
     _bannerAd?.dispose(); // پاک کردن تبلیغ از حافظه وقتی صفحه بسته می‌شود
     PurchaseManager().dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     _priceController.dispose();
+    _mapMoveDebounce?.cancel();
     super.dispose();
   }
 
@@ -754,9 +768,9 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
       _saveLastLocation(searchLat, searchLng);
 
       const apiKey = "ece7e50d-72fe-4e51-a996-555e56ca910c";
+      final listRadius = _fuelSearchRadiusKm > 25.0 ? 25.0 : _fuelSearchRadiusKm;
       final url =
-          //"https://creativecommons.tankerkoenig.de/json/list.php?lat=$searchLat&lng=$searchLng&rad=10&sort=price&type=$selectedFuel&apikey=$apiKey";
-          "https://creativecommons.tankerkoenig.de/json/list.php?lat=$searchLat&lng=$searchLng&rad=$searchRadius&sort=price&type=$selectedFuel&apikey=$apiKey";
+          "https://creativecommons.tankerkoenig.de/json/list.php?lat=$searchLat&lng=$searchLng&rad=$listRadius&sort=price&type=$selectedFuel&apikey=$apiKey";
 
       final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
@@ -764,16 +778,21 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
         if (data['ok'] == true) {
           setState(() {
             stations = (data['stations'] as List).where((s) {
-              return s['isOpen'] == true &&
-                  s['price'] != null &&
-                  s['price'] > 0;
+              return s['price'] != null && s['price'] > 0;
             }).toList();
 
             stations.sort((a, b) => a['price'].compareTo(b['price']));
             _restoreSelectedStationAtTop();
+            _syncMapStationsFromList(lat: searchLat, lng: searchLng);
             isLoading = false;
           });
+          _fitMapToSearchResults();
+        } else {
+          debugPrint('Tankerkoenig error: ${data['message']}');
+          setState(() => isLoading = false);
         }
+      } else {
+        setState(() => isLoading = false);
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -908,6 +927,7 @@ Future<void> _performSearch() async {
                 postalCode: isNumeric ? query : null,
                 cityName: !isNumeric ? query : null,
              );
+             _activateFullMapSearchView();
              return; 
           }
 
@@ -943,13 +963,6 @@ Future<void> _performSearch() async {
       userLng = lng;
     });
     _saveLastLocation(lat, lng);
-    // ۲. تلاش برای جابجایی دوربین نقشه (بدون ایجاد خطا اگر نقشه رندر نشده باشد)
-    try {
-      _mapController.move(ll.LatLng(lat, lng), 13.0);
-    } catch (e) {
-      // این بخش ارور "MapController not ready" را نادیده می‌گیرد
-      debugPrint("Map not ready yet, skipping controller move.");
-    }
 
     // ۳. به‌روزرسانی فیلد متن و ذخیره در تاریخچه (بدون تکراری)
     final displayName = place['display_name'] ?? query;
@@ -958,6 +971,7 @@ Future<void> _performSearch() async {
 
     // ۴. دریافت لیست ایستگاه‌های جدید
     await _searchStations(lat, lng, query);
+    _activateFullMapSearchView();
     
   } catch (e) {
     print('Search Error: $e');
@@ -972,6 +986,7 @@ Future<void> _performSearch() async {
         isSearchLoading = false;
         placeSuggestions = [];
       });
+      _searchFocusNode.unfocus();
     }
   }
 }
@@ -1013,13 +1028,8 @@ Future<void> _searchNearby() async {
 
     // گرفتن ایستگاه‌ها
     await _searchStations(userLat, userLng);
-
-    // حرکت نرم روی نقشه با مکانیزم گلِ Move!
-    if (_mapController != null) {
-      _mapController.move(ll.LatLng(userLat, userLng), 13.0);
-    }
-    
-    setState(() {});
+    _fitMapToSearchResults();
+    _activateFullMapSearchView();
 
   } catch (e) {
     debugPrint('Location Error: $e');
@@ -1029,6 +1039,7 @@ Future<void> _searchNearby() async {
   } finally {
     if (mounted) {
       setState(() => isSearchLoading = false);
+      _searchFocusNode.unfocus();
     }
   }
 }
@@ -1064,6 +1075,332 @@ Future<void> _searchNearby() async {
       final selectedStation = stations.removeAt(currentIndex);
       stations.insert(0, selectedStation);
     }
+  }
+
+  double get _fuelSearchRadiusKm => searchRadius > 50.0 ? 50.0 : searchRadius;
+
+  ll.LatLng? _pointOfStation(dynamic s) {
+    final lat = (s['lat'] as num?)?.toDouble();
+    final lng = (s['lng'] as num?)?.toDouble();
+    if (lat == null || lng == null) return null;
+    return ll.LatLng(lat, lng);
+  }
+
+  String _stationKey(dynamic s) {
+    final id = s['id']?.toString();
+    if (id != null && id.isNotEmpty) return id;
+    return '${s['lat']}_${s['lng']}';
+  }
+
+  List get _visibleMapStations {
+    if (_mapStations.isNotEmpty) return _mapStations;
+    return _filterWithinMapRadius(stations, _mapCenterLat, _mapCenterLng);
+  }
+
+  List _filterWithinMapRadius(List source, double lat, double lng) {
+    return source.where((s) {
+      final point = _pointOfStation(s);
+      if (point == null) return false;
+      final meters = Geolocator.distanceBetween(
+        lat,
+        lng,
+        point.latitude,
+        point.longitude,
+      );
+      return meters <= _mapVisibleRadiusKm * 1000;
+    }).toList();
+  }
+
+  List _mergeMapStations(List primary, List extra, double lat, double lng) {
+    final merged = <String, dynamic>{};
+    for (final s in _filterWithinMapRadius([...primary, ...extra], lat, lng)) {
+      merged[_stationKey(s)] = s;
+    }
+    return merged.values.toList();
+  }
+
+  void _syncMapStationsFromList({double? lat, double? lng}) {
+    _mapCenterLat = lat ?? userLat;
+    _mapCenterLng = lng ?? userLng;
+    _mapStations = _filterWithinMapRadius(stations, _mapCenterLat, _mapCenterLng);
+  }
+
+  void _onUserMovedMap(ll.LatLng center, {String? mapKind}) {
+    final movedMeters = Geolocator.distanceBetween(
+      _mapCenterLat,
+      _mapCenterLng,
+      center.latitude,
+      center.longitude,
+    );
+    if (movedMeters < 200) return;
+    _mapMoveDebounce?.cancel();
+    _mapMoveDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      _mapCenterLat = center.latitude;
+      _mapCenterLng = center.longitude;
+      setState(() {
+        _mapStations = _filterWithinMapRadius(
+          [..._mapStations, ...stations],
+          _mapCenterLat,
+          _mapCenterLng,
+        );
+      });
+      _loadStationsForMapCenter(
+        _mapCenterLat,
+        _mapCenterLng,
+        mapKind: mapKind,
+      );
+    });
+  }
+
+  Future<void> _loadStationsForMapCenter(
+    double lat,
+    double lng, {
+    String? mapKind,
+  }) async {
+    final kind = mapKind ?? selectedFuel;
+    if (_isLoadingMapStations) {
+      _pendingMapLoadLat = lat;
+      _pendingMapLoadLng = lng;
+      _pendingMapLoadKind = kind;
+      return;
+    }
+    _isLoadingMapStations = true;
+    _pendingMapLoadLat = null;
+    _pendingMapLoadLng = null;
+    _pendingMapLoadKind = null;
+    if (mounted) setState(() {});
+    try {
+      List loaded = [];
+      if (kind == 'parking') {
+        loaded = await _fetchParkingAround(lat, lng, _mapVisibleRadiusKm);
+      } else if (kind == 'ev') {
+        loaded = await _fetchEvAround(lat, lng, _mapVisibleRadiusKm);
+      } else {
+        loaded = await _fetchFuelAround(lat, lng, _mapVisibleRadiusKm);
+      }
+      if (!mounted) return;
+      setState(() {
+        _mapStations = _mergeMapStations(loaded, stations, lat, lng);
+      });
+    } catch (e) {
+      debugPrint('Map-move station load failed: $e');
+    } finally {
+      _isLoadingMapStations = false;
+      final nextLat = _pendingMapLoadLat;
+      final nextLng = _pendingMapLoadLng;
+      final nextKind = _pendingMapLoadKind;
+      if (nextLat != null && nextLng != null) {
+        _pendingMapLoadLat = null;
+        _pendingMapLoadLng = null;
+        _pendingMapLoadKind = null;
+        await _loadStationsForMapCenter(nextLat, nextLng, mapKind: nextKind);
+      } else if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  Future<List> _fetchFuelAround(double lat, double lng, double radiusKm) async {
+    const apiKey = "ece7e50d-72fe-4e51-a996-555e56ca910c";
+    final rad = radiusKm > 25.0 ? 25.0 : radiusKm;
+    final url =
+        "https://creativecommons.tankerkoenig.de/json/list.php?lat=$lat&lng=$lng&rad=$rad&sort=price&type=$selectedFuel&apikey=$apiKey";
+    final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
+    if (response.statusCode != 200) return [];
+    final data = json.decode(response.body);
+    if (data['ok'] != true) return [];
+    final list = (data['stations'] as List).where((s) {
+      return s['price'] != null && s['price'] > 0;
+    }).toList();
+    list.sort((a, b) => a['price'].compareTo(b['price']));
+    return list;
+  }
+
+  Future<List> _fetchEvAround(double lat, double lng, double radiusKm) async {
+    const apiKey = "1496f02a-4cf6-45fd-90e9-83bb67a3cdab";
+    final url =
+        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&latitude=$lat&longitude=$lng&distance=$radiusKm&distanceunit=KM&maxresults=50&compact=true&verbose=false&key=$apiKey";
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {
+        "User-Agent":
+            "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36",
+        "Accept": "application/json",
+      },
+    ).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) return [];
+    final List<dynamic> data = json.decode(response.body);
+    return data.map((item) {
+      var connections = item['Connections'] as List?;
+      String power = "N/A";
+      if (connections != null && connections.isNotEmpty) {
+        power = "${connections[0]['PowerKW'] ?? '?'}kW";
+      }
+      var addr = item['AddressInfo'] ?? {};
+      return {
+        'id': item['ID']?.toString() ?? '',
+        'name': addr['Title'] ?? 'Unnamed Station',
+        'brand': 'EV Charging',
+        'street': addr['AddressLine1'] ?? 'No Address',
+        'houseNumber': '',
+        'lat': addr['Latitude'] ?? 0.0,
+        'lng': addr['Longitude'] ?? 0.0,
+        'price': '⚡ $power',
+        'isOpen': true,
+        'dist': (addr['Distance'] ?? 0).toStringAsFixed(1),
+      };
+    }).toList();
+  }
+
+  Future<List> _fetchParkingAround(double lat, double lng, double radiusKm) async {
+    final elements = await _queryOverpassParking(
+      lat: lat,
+      lng: lng,
+      radiusMeters: (radiusKm * 1000).round(),
+    );
+    return _parkingStationsFromOverpass(elements, lat, lng);
+  }
+
+  String _mapMarkerLabel(dynamic s) {
+    final price = s['price']?.toString() ?? '';
+    if (selectedFuel == 'parking' || price == 'P') return 'P';
+    if (selectedFuel == 'ev' || price.contains('⚡') || price.contains('kW')) {
+      return price;
+    }
+    return '€$price';
+  }
+
+  double? _overpassLat(dynamic element) {
+    final direct = (element['lat'] as num?)?.toDouble();
+    if (direct != null) return direct;
+    final center = element['center'];
+    if (center is Map) return (center['lat'] as num?)?.toDouble();
+    return null;
+  }
+
+  double? _overpassLng(dynamic element) {
+    final direct = (element['lon'] as num?)?.toDouble();
+    if (direct != null) return direct;
+    final center = element['center'];
+    if (center is Map) return (center['lon'] as num?)?.toDouble();
+    return null;
+  }
+
+  bool _isUsableParkingElement(dynamic element) {
+    final tags = element['tags'];
+    if (tags is! Map) return false;
+    final access = (tags['access'] ?? '').toString().toLowerCase();
+    if (access == 'private' || access == 'no') return false;
+    final kind = (tags['parking'] ?? '').toString().toLowerCase();
+    if (kind == 'garage_boxes' || kind == 'sheds') return false;
+    // Stray parking *nodes* are often dropped on a station/road centroid.
+    // Real lots on OSM are almost always ways/relations (the blue P on the map).
+    if (element['type'] == 'node' && kind.isEmpty) return false;
+    return _overpassLat(element) != null && _overpassLng(element) != null;
+  }
+
+  List<Map<String, dynamic>> _parkingStationsFromOverpass(
+    List<dynamic> elements,
+    double originLat,
+    double originLng,
+  ) {
+    final seen = <String>{};
+    final parsed = <Map<String, dynamic>>[];
+    for (final element in elements) {
+      if (!_isUsableParkingElement(element)) continue;
+      final lat = _overpassLat(element)!;
+      final lng = _overpassLng(element)!;
+      final key = '${lat.toStringAsFixed(4)}_${lng.toStringAsFixed(4)}';
+      if (!seen.add(key)) continue;
+      final tags = Map<String, dynamic>.from(element['tags'] as Map);
+      final name = (tags['name'] ?? '').toString().trim();
+      final street = (tags['street'] ?? tags['addr:street'] ?? '').toString();
+      final distKm = Geolocator.distanceBetween(originLat, originLng, lat, lng) / 1000.0;
+      parsed.add({
+        'id': 'osm_${element['type']}_${element['id']}',
+        'name': name.isEmpty ? 'Parkplatz' : name,
+        'brand': 'Parking',
+        'street': street.isEmpty ? 'Parkplatz' : street,
+        'houseNumber': (tags['addr:housenumber'] ?? '').toString(),
+        'lat': lat,
+        'lng': lng,
+        'price': 'P',
+        'isOpen': true,
+        'free_slots': 10,
+        'dist': distKm.toStringAsFixed(1),
+        'distKm': distKm,
+      });
+    }
+    parsed.sort((a, b) => (a['distKm'] as double).compareTo(b['distKm'] as double));
+    if (parsed.length > 80) return parsed.take(80).toList();
+    return parsed;
+  }
+
+  Future<List<dynamic>> _queryOverpassParking({
+    required double lat,
+    required double lng,
+    required int radiusMeters,
+  }) async {
+    final query = '''
+[out:json][timeout:25];
+(
+  way(around:$radiusMeters,$lat,$lng)["amenity"="parking"];
+  relation(around:$radiusMeters,$lat,$lng)["amenity"="parking"];
+  node(around:$radiusMeters,$lat,$lng)["amenity"="parking"]["parking"];
+);
+out center;
+''';
+    const endpoints = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+    ];
+    for (final endpoint in endpoints) {
+      try {
+        final response = await http
+            .post(
+              Uri.parse(endpoint),
+              headers: {
+                'User-Agent': 'GermanyFuelApp/1.0',
+                'Accept': 'application/json',
+              },
+              body: query,
+            )
+            .timeout(const Duration(seconds: 25));
+        if (response.statusCode != 200) continue;
+        final decoded = json.decode(response.body);
+        if (decoded is Map && decoded['elements'] is List) {
+          return List<dynamic>.from(decoded['elements'] as List);
+        }
+      } catch (e) {
+        debugPrint('Overpass $endpoint failed: $e');
+      }
+    }
+    return [];
+  }
+
+  void _fitMapToSearchResults() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // ~5 km from center (map always shows this window, even if the list is wider)
+      const dLat = 0.045;
+      const dLng = 0.07;
+      try {
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: LatLngBounds(
+              ll.LatLng(_mapCenterLat - dLat, _mapCenterLng - dLng),
+              ll.LatLng(_mapCenterLat + dLat, _mapCenterLng + dLng),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+            maxZoom: 15,
+          ),
+        );
+      } catch (e) {
+        debugPrint('Map fit skipped: $e');
+      }
+    });
   }
 
   Future<void> _openMap(double lat, double lng) async {
@@ -1472,11 +1809,16 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
   void initState() {
     super.initState();
     AppTimelineManager().hydrateFromLocalCache();
+    _searchFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
 
     // --- کدهای جدید: خواندن آخرین لوکیشن از حافظه ---
     var settingsBox = Hive.box('settingsBox');
     userLat = settingsBox.get('lastLat', defaultValue: 52.5200);
     userLng = settingsBox.get('lastLng', defaultValue: 13.4050);
+    _mapCenterLat = userLat;
+    _mapCenterLng = userLng;
     selectedStationId = settingsBox.get('selectedStationId');
     selectedFuel = settingsBox.get('lastSelectedFuel', defaultValue: 'diesel');
     // ---------------------------------------------
@@ -2125,7 +2467,7 @@ Future<void> _refreshAllMaintenanceReminders() async {
     final String apiKey =
         "1496f02a-4cf6-45fd-90e9-83bb67a3cdab"; // کلیدی که گرفتید
     final String url =
-        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&latitude=$searchLat&longitude=$searchLng&maxresults=20&compact=true&verbose=false&key=$apiKey";
+        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&latitude=$searchLat&longitude=$searchLng&distance=$_fuelSearchRadiusKm&distanceunit=KM&maxresults=100&compact=true&verbose=false&key=$apiKey";
     //
     //"https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&maxresults=10&compact=true&verbose=false";
     try {
@@ -2168,7 +2510,9 @@ Future<void> _refreshAllMaintenanceReminders() async {
             };
           }).toList();
           _restoreSelectedStationAtTop();
+          _syncMapStationsFromList(lat: searchLat, lng: searchLng);
         });
+        _fitMapToSearchResults();
         print("✅ دیتا با موفقیت دریافت شد");
       } else {
         print("❌ خطای سرور: ${response.body}");
@@ -2256,46 +2600,28 @@ Future<void> _openGoogleMapsForParkingFallback({
 
   // اجرای درخواست Overpass API فقط در صورت داشتن مختصات معتبر
   if (searchLat != 0.0 && searchLng != 0.0) {
-    final String url =
-        "https://overpass-api.de/api/interpreter?data=[out:json];node(around:${(searchRadius * 1000).toInt()},$searchLat,$searchLng)[\"amenity\"=\"parking\"];out;";
-        
+    final radiusMeters = (_fuelSearchRadiusKm * 1000).round();
+
     try {
-      final response = await http
-          .get(
-            Uri.parse(url),
-            headers: {
-              "User-Agent": "GermanyFuelApp/1.0",
-              "Accept": "application/json",
-            },
-          )
-          .timeout(const Duration(seconds: 15));
+      final elements = await _queryOverpassParking(
+        lat: searchLat,
+        lng: searchLng,
+        radiusMeters: radiusMeters,
+      );
+      final parkingStations = _parkingStationsFromOverpass(
+        elements,
+        searchLat,
+        searchLng,
+      );
 
-      if (response.statusCode == 200) {
-        Map<String, dynamic> decoded = json.decode(response.body);
-        List<dynamic> elements = decoded['elements'] ?? [];
-
-        if (elements.isNotEmpty) {
-          dataFound = true;
-          
-          setState(() {
-            stations = elements.map((p) {
-              var tags = p['tags'] ?? {};
-              return {
-                'name': tags['name'] ?? 'Parkplatz',
-                'brand': 'Parking',
-                'street': tags['street'] ?? 'Public Area',
-                'houseNumber': '',
-                'lat': p['lat'],
-                'lng': p['lon'],
-                'price': 'P', 
-                'isOpen': true,
-                'free_slots': 10,
-                'dist': 'Nearby',
-              };
-            }).toList();
-            _restoreSelectedStationAtTop();
-          });
-        }
+      if (parkingStations.isNotEmpty) {
+        dataFound = true;
+        setState(() {
+          stations = parkingStations;
+          _restoreSelectedStationAtTop();
+          _syncMapStationsFromList(lat: searchLat, lng: searchLng);
+        });
+        _fitMapToSearchResults();
       }
     } catch (e) {
       debugPrint("Parking Error: $e");
@@ -3279,10 +3605,10 @@ Widget build(BuildContext context) {
               // 📄 فاز ۲ و بالاتر (۳۰ روز به بعد): تبلیغ بین‌صفحه‌ای موقع تغییر تب
               if (!isPremium && tier >= 2) {
                 AppAdManager().showInterstitialAd(() {
-                  setState(() => _selectedIndex = index);
+                  _selectMainTab(index);
                 });
               } else {
-                setState(() => _selectedIndex = index);
+                _selectMainTab(index);
               }             
 
             },
@@ -3327,11 +3653,10 @@ Widget build(BuildContext context) {
   );
 }
 
-  Widget _buildFuelPage(BuildContext context) {
+  Widget _buildClassicFuelPage() {
     return SingleChildScrollView(
       child: Column(
         children: [
-
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Container(
@@ -3352,7 +3677,7 @@ Widget build(BuildContext context) {
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: selectedFuel,
-                  isExpanded: true, // برای اینکه عرض کامل را بگیرد
+                  isExpanded: true,
                   icon: const Icon(Icons.arrow_drop_down_circle, color: Colors.blue),
                   borderRadius: BorderRadius.circular(12),
                   items: [
@@ -3408,248 +3733,444 @@ Widget build(BuildContext context) {
                     ),
                   ],
                   onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      _onFuelTypeChanged(newValue);
-
-
-
-
-                      
-                    }
+                    if (newValue != null) _onFuelTypeChanged(newValue);
                   },
                 ),
               ),
             ),
           ),
-          
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      textInputAction: TextInputAction.search,
+                      onChanged: (value) {
+                        setState(() {});
+                        _updatePlaceSuggestions(value);
+                      },
+                      onSubmitted: (_) => _performSearch(),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        labelText: translate('search_label', widget.currentLang),
+                        hintText: translate('search_hint', widget.currentLang),
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => placeSuggestions = []);
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: ElevatedButton.icon(
+                            onPressed: isSearchLoading ? null : _performSearch,
+                            icon: const Icon(Icons.search, size: 18),
+                            label: Text(
+                              isSearchLoading ? '...' : translate('search', widget.currentLang),
+                              style: TextStyle(fontSize: 12 * _fontScale),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          flex: 4,
+                          child: OutlinedButton.icon(
+                            onPressed: _searchNearby,
+                            icon: const Icon(Icons.my_location, size: 18),
+                            label: Text(
+                              translate('location', widget.currentLang),
+                              style: TextStyle(fontSize: 12 * _fontScale),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              translate('radius', widget.currentLang),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10 * _fontScale),
+                            ),
+                            DropdownButton<double>(
+                              value: const [5.0, 10.0, 20.0, 50.0].contains(searchRadius)
+                                  ? searchRadius
+                                  : 5.0,
+                              isDense: true,
+                              underline: Container(),
+                              items: [5.0, 10.0, 20.0, 50.0].map((double val) {
+                                return DropdownMenuItem<double>(
+                                  value: val,
+                                  child: Text(
+                                    translate('km', widget.currentLang, {'val': val.toInt().toString()}),
+                                    style: TextStyle(fontSize: 12 * _fontScale),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val == null) return;
+                                setState(() => searchRadius = val);
+                                _searchStations(userLat, userLng, _searchController.text.trim());
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    if (placeSuggestions.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      ...placeSuggestions.map((suggestion) {
+                        return ListTile(
+                          dense: true,
+                          title: Text(suggestion['display_name']?.toString() ?? ''),
+                          onTap: () {
+                            _searchController.text = suggestion['display_name']?.toString() ?? '';
+                            setState(() => placeSuggestions = []);
+                            _performSearch();
+                          },
+                        );
+                      }),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: SegmentedButton<String>(
+              segments: [
+                ButtonSegment(
+                  value: 'map',
+                  label: Text(translate('map_view', widget.currentLang)),
+                  icon: const Icon(Icons.map),
+                ),
+                ButtonSegment(
+                  value: 'list',
+                  label: Text(translate('list_view', widget.currentLang)),
+                  icon: const Icon(Icons.list),
+                ),
+              ],
+              selected: {fuelViewMode},
+              onSelectionChanged: (Set<String> newSelection) {
+                setState(() => fuelViewMode = newSelection.first);
+              },
+            ),
+          ),
+          if (fuelViewMode == 'map')
+            selectedFuel == 'parking'
+                ? _buildParkingMap(fill: false)
+                : _buildProfessionalMap(fill: false),
+          if (fuelViewMode == 'list') _buildStationsListView(nested: true),
+        ],
+      ),
+    );
+  }
 
-Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
-  child: Card(
-    elevation: 2,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-    child: Padding(
-      padding: const EdgeInsets.all(12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-        
-          // --- فیلد سرچ ---
-          TextField(
-            controller: _searchController,
-            textInputAction: TextInputAction.search,
-            onChanged: _updatePlaceSuggestions,
-            onSubmitted: (_) => _performSearch(),
-            decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.search),
-              
-              labelText: translate('search_label', widget.currentLang),
-              hintText: translate('search_hint', widget.currentLang),
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.clear),
-                onPressed: () {
-                  _searchController.clear();
+  Widget _buildFuelPage(BuildContext context) {
+    if (!_useCompactMapSearch) {
+      return _buildClassicFuelPage();
+    }
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: fuelViewMode == 'map'
+              ? (selectedFuel == 'parking' ? _buildParkingMap() : _buildProfessionalMap())
+              : _buildStationsListView(),
+        ),
+        Positioned(
+          top: 8,
+          left: 8,
+          right: 8,
+          child: _buildCompactSearchOverlay(),
+        ),
+        Positioned(
+          right: 10,
+          bottom: 10,
+          child: Material(
+            color: Colors.white,
+            elevation: 5,
+            borderRadius: BorderRadius.circular(22),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: SegmentedButton<String>(
+                showSelectedIcon: false,
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                segments: [
+                  ButtonSegment(
+                    value: 'map',
+                    icon: const Icon(Icons.map, size: 18),
+                    tooltip: translate('map_view', widget.currentLang),
+                  ),
+                  ButtonSegment(
+                    value: 'list',
+                    icon: const Icon(Icons.list, size: 18),
+                    tooltip: translate('list_view', widget.currentLang),
+                  ),
+                ],
+                selected: {fuelViewMode},
+                onSelectionChanged: (Set<String> newSelection) {
                   setState(() {
-                    placeSuggestions = [];
+                    fuelViewMode = newSelection.first;
+                    _searchFocusNode.unfocus();
                   });
                 },
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          
+        ),
+        if (isLoading || isSearchLoading)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+      ],
+    );
+  }
 
-          Row(
-            children: [
-              // ۱. دکمه سرچ
-              Expanded(
-                flex: 3,
-                child: ElevatedButton.icon(
-                  onPressed: isSearchLoading ? null : _performSearch,
-                  icon: const Icon(Icons.search, size: 18),
-                  label: Text(
-                    //isSearchLoading ? '...' : 'Search',
-                    isSearchLoading ? '...' : translate('search', widget.currentLang),
-                    style: TextStyle(fontSize: 12 * _fontScale),
+  Widget _buildCompactSearchOverlay() {
+    final bool showDrawer = _searchFocusNode.hasFocus &&
+        (placeSuggestions.isNotEmpty || searchHistory.isNotEmpty);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          elevation: 8,
+          borderRadius: BorderRadius.circular(16),
+          color: Colors.white.withOpacity(0.96),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 4, 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 102,
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: selectedFuel,
+                      isDense: true,
+                      isExpanded: true,
+                      icon: const Icon(Icons.arrow_drop_down, size: 18),
+                      items: [
+                        DropdownMenuItem(
+                          value: 'diesel',
+                          child: Text(
+                            translate('fuel_diesel', widget.currentLang),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        const DropdownMenuItem(
+                          value: 'e10',
+                          child: Text('E10', style: TextStyle(fontSize: 12)),
+                        ),
+                        const DropdownMenuItem(
+                          value: 'e5',
+                          child: Text('E5', style: TextStyle(fontSize: 12)),
+                        ),
+                        DropdownMenuItem(
+                          value: 'ev',
+                          child: Text(
+                            translate('fuel_ev', widget.currentLang),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'parking',
+                          child: Text(
+                            translate('parking', widget.currentLang),
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                      onChanged: (String? newValue) {
+                        if (newValue != null) _onFuelTypeChanged(newValue);
+                      },
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 4),
-
-              // ۲. دکمه لوکیشن من
-              Expanded(
-                flex: 4,
-                child: OutlinedButton.icon(
-                  onPressed: _searchNearby, // متدی که هانوفر رو پیدا می‌کنه
-                  icon: const Icon(Icons.my_location, size: 18),
-                  label: Text(
-                    //'Location',
-                    translate('location', widget.currentLang),
-                    style: TextStyle(fontSize: 12 * _fontScale),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    textInputAction: TextInputAction.search,
+                    onChanged: (value) {
+                      setState(() {});
+                      _updatePlaceSuggestions(value);
+                    },
+                    onSubmitted: (_) => _performSearch(),
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      hintText: translate('search_hint', widget.currentLang),
+                      prefixIcon: const Icon(Icons.search, size: 18),
+                      prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      suffixIcon: _searchController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 16),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => placeSuggestions = []);
+                              },
+                            ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.blue.shade100),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.blue.shade100),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-
-              // ۳. بخش انتخاب شعاع (Radius)
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(translate('radius', widget.currentLang), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10 * _fontScale)),
-                  DropdownButton<double>(
-                    value: searchRadius,
-                    isDense: true, // برای اینکه جای کمتری بگیره
-                    underline: Container(), // حذف خط زیر دراپ‌دان برای تمیزی
+                IconButton(
+                  tooltip: translate('location', widget.currentLang),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.my_location, size: 20),
+                  onPressed: isSearchLoading ? null : _searchNearby,
+                ),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<double>(
+                    value: const [5.0, 10.0, 20.0, 50.0].contains(searchRadius)
+                        ? searchRadius
+                        : 5.0,
+                    isDense: true,
                     items: [5.0, 10.0, 20.0, 50.0].map((double val) {
                       return DropdownMenuItem<double>(
                         value: val,
                         child: Text(
-                        //child: Text("${val.toInt()} km", 
-                        translate('km', widget.currentLang, {'val': val.toInt().toString()}),
-                        style: TextStyle(fontSize: 12 * _fontScale)),                      
+                          translate('km', widget.currentLang, {'val': val.toInt().toString()}),
+                          style: const TextStyle(fontSize: 11),
+                        ),
                       );
                     }).toList(),
                     onChanged: (val) {
-                      setState(() {
-                        searchRadius = val!;
-                      });
+                      if (val == null) return;
+                      setState(() => searchRadius = val);
+                      _searchStations(userLat, userLng, _searchController.text.trim());
                     },
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
-
-          // --- نمایش پیشنهادات مکان (Suggestions) ---
-          if (placeSuggestions.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ...placeSuggestions.map((suggestion) {
-              return ListTile(
-                title: Text(suggestion['display_name']?.toString() ?? ''),
-                onTap: () {
-                  _searchController.text = suggestion['display_name']?.toString() ?? '';
-                  setState(() => placeSuggestions = []);
-                  _performSearch();
-                },
-              );
-            }).toList(),
-          ],
-
-      
-
-if (searchHistory.isNotEmpty) ...[
-      const Divider(),
-      Theme(
-        // حذف خطوط بالا و پایین ExpansionTile در حالت باز شده
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          // تنظیم چگالی بصری برای فشرده‌تر شدن (جایگزین mini)
-          visualDensity: VisualDensity.compact,
-          dense: true,
-          title: Text(
-            "Recent Searches", 
-            style: TextStyle(fontSize: 12 * _fontScale, color: Colors.grey)
-          ),
-          trailing: TextButton(
-            onPressed: _clearSearchHistory, 
-            child: Text(
-              "Clear", 
-              style: TextStyle(color: Colors.red, fontSize: 11 * _fontScale)
-            )
-          ),
-          children: [
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: 40, 
-                maxHeight: 150 * _fontScale, 
-              ),
-              child: SingleChildScrollView(
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Wrap(
-                    spacing: 8.0 * _fontScale,
-                    runSpacing: 0.0,
-                    children: searchHistory.map((history) => ActionChip(
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      padding: EdgeInsets.symmetric(horizontal: 6 * _fontScale, vertical: 2),
-                      label: Text(
-                        history, 
-                        style: TextStyle(fontSize: 11 * _fontScale)
+        ),
+        if (showDrawer) ...[
+          const SizedBox(height: 6),
+          Material(
+            elevation: 6,
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.white,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 240),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                shrinkWrap: true,
+                children: [
+                  ...placeSuggestions.map((suggestion) {
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.place_outlined, size: 18),
+                      title: Text(
+                        suggestion['display_name']?.toString() ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
                       ),
-                      onPressed: () {
+                      onTap: () {
+                        _searchController.text = suggestion['display_name']?.toString() ?? '';
+                        setState(() => placeSuggestions = []);
+                        _performSearch();
+                      },
+                    );
+                  }),
+                  if (placeSuggestions.isNotEmpty && searchHistory.isNotEmpty)
+                    const Divider(height: 8),
+                  if (searchHistory.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
+                      child: Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Recent Searches',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _clearSearchHistory,
+                            child: const Text(
+                              'Clear',
+                              style: TextStyle(color: Colors.red, fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ...searchHistory.map((history) {
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.history, size: 18, color: Colors.grey),
+                      title: Text(
+                        history,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onTap: () {
                         _searchController.text = history;
                         _performSearch();
                       },
-                    )).toList(),
-                  ),
-                ),
+                    );
+                  }),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
-    ],
-
-
-
-        ],
-      ),
-    ),
-  ),
-),
-
-          // ۱.۵. بخش انتخاب حالت نمایش (Map یا List)
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
-            child: SegmentedButton<String>(
-              segments: [
-              //const [
-                ButtonSegment(
-                  value: 'map',
-                  //label: Text('Map View'),
-                  label: Text(translate('map_view', widget.currentLang)),
-                  icon: Icon(Icons.map),
-                ),
-                ButtonSegment(
-                  value: 'list',
-                  //label: Text('List View'),
-                  label: Text(translate('list_view', widget.currentLang)),
-                  icon: Icon(Icons.list),
-                ),
-              ],
-              selected: {fuelViewMode},
-              onSelectionChanged: (Set<String> newSelection) {
-                setState(() {
-                  fuelViewMode = newSelection.first;
-                });
-              },
-            ),
           ),
+        ],
+      ],
+    );
+  }
 
-       
-          const SizedBox(height: 10),
-
-          // نمایش بر اساس حالت انتخاب شده
-          if (fuelViewMode == 'map')
-            _buildProfessionalMap(),
-          
-          if (fuelViewMode == 'list')
-            isLoading
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.only(top: 50.0),
-                      child: CircularProgressIndicator(),
-                    ),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
+  Widget _buildStationsListView({bool nested = false}) {
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return ListView.builder(
+                    padding: EdgeInsets.only(top: nested ? 8 : 72, bottom: nested ? 16 : 56),
+                    shrinkWrap: nested,
+                    physics: nested ? const NeverScrollableScrollPhysics() : null,
                     itemCount: stations.length,
                     itemBuilder: (context, index) {
                       final s = stations[index];
@@ -3903,10 +4424,6 @@ if (searchHistory.isNotEmpty) ...[
                         ),
                       );
                     },
-                  ),
-        ],
-      ),
-      //),
     );
   }
 
@@ -3919,6 +4436,7 @@ void _onFuelTypeChanged(String newFuelType) {
     selectedFuel = newFuelType;
     isLoading = true;
     stations = []; // خالی کردن لیست قبلی برای جلوگیری از پرش تصویر
+    _mapStations = [];
   });
   
   // فراخوانی مجدد متد با موقعیت مکانی فعلی کاربر
@@ -4100,20 +4618,64 @@ Widget _buildEmailNotificationOption() {
     );
   }
 
-  // ۲. ویجت نقشه حرفه‌ای برای پارکینگ
-  Widget _buildParkingMap() {
-    if (stations.isEmpty) return const SizedBox.shrink();
-
-    return SizedBox(
-      height: 300,
-      child: RepaintBoundary(
-      child: FlutterMap(
-        options: MapOptions(
-          initialCenter: ll.LatLng(
-            stations[0]['lat'] as double,
-            stations[0]['lng'] as double,
+  Widget _wrapMap({required bool fill, required Widget child}) {
+    final painted = Stack(
+      children: [
+        Positioned.fill(child: RepaintBoundary(child: child)),
+        if (_isLoadingMapStations)
+          const Positioned(
+            top: 8,
+            right: 8,
+            child: SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
           ),
-          initialZoom: 13.0,
+      ],
+    );
+    if (fill) return SizedBox.expand(child: painted);
+    return SizedBox(
+      height: 300 * (_fontScale > 1.2 ? 1.1 : 1.0),
+      child: painted,
+    );
+  }
+
+  void _activateFullMapSearchView() {
+    if (!mounted) return;
+    setState(() {
+      _useCompactMapSearch = true;
+      fuelViewMode = 'map';
+    });
+  }
+
+  void _selectMainTab(int index) {
+    if (!mounted) return;
+    setState(() {
+      _selectedIndex = index;
+      if (index != 0) {
+        _useCompactMapSearch = false;
+        placeSuggestions = [];
+        _searchFocusNode.unfocus();
+      }
+    });
+  }
+
+  // ۲. ویجت نقشه حرفه‌ای برای پارکینگ
+  Widget _buildParkingMap({bool fill = true}) {
+    return _wrapMap(
+      fill: fill,
+      child: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: ll.LatLng(userLat, userLng),
+          initialZoom: 15.0,
+          onTap: (_, __) => _searchFocusNode.unfocus(),
+          onPositionChanged: (camera, hasGesture) {
+            if (hasGesture) {
+              _onUserMovedMap(camera.center, mapKind: 'parking');
+            }
+          },
         ),
         children: [
           TileLayer(
@@ -4122,59 +4684,78 @@ Widget _buildEmailNotificationOption() {
             keepBuffer: 2,
             panBuffer: 1,
           ),
-
           MarkerLayer(
-            markers: (stations.length > 30 ? stations.take(30) : stations).map((s) {
-              return Marker(
-                width: 90,
-                height: 45,
-                point: ll.LatLng(s['lat'] as double, s['lng'] as double),
-                child: GestureDetector(
-                  onTap: () => _openMap(s['lat'] as double, s['lng'] as double),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.greenAccent,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white, width: 2),
-                      boxShadow: [
-                        const BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
+            markers: [
+              Marker(
+                width: 25 * _fontScale,
+                height: 25 * _fontScale,
+                point: ll.LatLng(userLat, userLng),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Icon(Icons.my_location, size: 15 * _fontScale, color: Colors.white),
+                ),
+              ),
+              for (final s in _visibleMapStations)
+                if (_pointOfStation(s) != null)
+                  Marker(
+                    width: 34 * _fontScale,
+                    height: 34 * _fontScale,
+                    alignment: Alignment.center,
+                    point: _pointOfStation(s)!,
+                    child: GestureDetector(
+                      onTap: () {
+                        final point = _pointOfStation(s)!;
+                        _openMap(point.latitude, point.longitude);
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E88E5),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black26,
+                              blurRadius: 3,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.local_parking,
-                        color: Colors.white,
-                        size: 24,
+                        child: const Center(
+                          child: Text(
+                            'P',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+            ],
           ),
         ],
-      ),
       ),
     );
   }
 
-Widget _buildProfessionalMap() {
-  final List mapStations = stations.length > 30
-      ? stations.take(30).toList()
-      : stations;
-
-  return SizedBox(
-    height: 300 * (_fontScale > 1.2 ? 1.1 : 1.0),
-    child: RepaintBoundary(
+Widget _buildProfessionalMap({bool fill = true}) {
+  return _wrapMap(
+    fill: fill,
     child: FlutterMap(
       mapController: _mapController,
       options: MapOptions(
         initialCenter: ll.LatLng(userLat, userLng),
         initialZoom: 13.0,
+        onTap: (_, __) => _searchFocusNode.unfocus(),
+        onPositionChanged: (camera, hasGesture) {
+          if (hasGesture) _onUserMovedMap(camera.center);
+        },
       ),
       children: [
         TileLayer(
@@ -4198,24 +4779,26 @@ Widget _buildProfessionalMap() {
                 child: Icon(Icons.my_location, size: 15 * _fontScale, color: Colors.white),
               ),
             ),
-
-            if (mapStations.isNotEmpty)
-              ...mapStations.map((s) {
-                return Marker(
+            for (final s in _visibleMapStations)
+              if (_pointOfStation(s) != null)
+                Marker(
                   width: 72 * _fontScale,
                   height: 36 * _fontScale,
-                  point: ll.LatLng(s['lat'] as double, s['lng'] as double),
+                  point: _pointOfStation(s)!,
                   child: GestureDetector(
-                    onTap: () => _openMap(s['lat'] as double, s['lng'] as double),
+                    onTap: () {
+                      final point = _pointOfStation(s)!;
+                      _openMap(point.latitude, point.longitude);
+                    },
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.blueAccent,
+                        color: s['isOpen'] == true ? Colors.blueAccent : Colors.blueGrey,
                         borderRadius: BorderRadius.circular(10 * _fontScale),
                         border: Border.all(color: Colors.white, width: 2),
                       ),
                       child: Center(
                         child: Text(
-                          "€${s['price']}",
+                          _mapMarkerLabel(s),
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -4225,12 +4808,10 @@ Widget _buildProfessionalMap() {
                       ),
                     ),
                   ),
-                );
-              }),
+                ),
           ],
         ),
       ],
-    ),
     ),
   );
 }
