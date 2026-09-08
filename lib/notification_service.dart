@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import 'translations.dart';
 
 const String _serviceReminderCategoryId = 'service_reminder';
 
@@ -146,24 +147,24 @@ class NotificationService {
     );
     await _zonedSchedule(
       id: id,
-      title: 'Car Service Reminder 🔧',
-      body: 'Snoozed reminder — please check your car service page.',
+      title: translate('snooze_reminder_title', currentAppLanguage()),
+      body: translate('snooze_reminder_body', currentAppLanguage()),
       scheduledDate: next,
       details: _details(
-        actions: const [
+        actions: [
           AndroidNotificationAction(
             'open_services',
-            'Open',
+            translate('btn_open', currentAppLanguage()),
             showsUserInterface: true,
           ),
           AndroidNotificationAction(
             'delete_alarm',
-            'Delete',
+            translate('btn_delete', currentAppLanguage()),
             cancelNotification: true,
           ),
           AndroidNotificationAction(
             'snooze_1_day',
-            'Snooze',
+            translate('btn_snooze', currentAppLanguage()),
             cancelNotification: true,
           ),
         ],
@@ -179,22 +180,28 @@ class NotificationService {
 
     final DarwinInitializationSettings initializationSettingsDarwin =
         DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
       notificationCategories: [
         DarwinNotificationCategory(
           _serviceReminderCategoryId,
           actions: [
-            DarwinNotificationAction.plain('open_services', 'Open'),
+            DarwinNotificationAction.plain(
+              'open_services',
+              translate('btn_open', currentAppLanguage()),
+            ),
             DarwinNotificationAction.plain(
               'delete_alarm',
-              'Delete',
+              translate('btn_delete', currentAppLanguage()),
               options: {
                 DarwinNotificationActionOption.destructive,
               },
             ),
-            DarwinNotificationAction.plain('snooze_1_day', 'Snooze 1 day'),
+            DarwinNotificationAction.plain(
+              'snooze_1_day',
+              translate('snooze_one_day', currentAppLanguage()),
+            ),
           ],
         ),
       ],
@@ -222,18 +229,18 @@ class NotificationService {
       }
     }
 
-    const AndroidNotificationChannel fuelPriceChannel = AndroidNotificationChannel(
+    final AndroidNotificationChannel fuelPriceChannel = AndroidNotificationChannel(
       fuelPriceChannelId,
-      fuelPriceChannelName,
-      description: 'Notifications for cheap fuel prices',
+      translate('fuel_channel_name', currentAppLanguage()),
+      description: translate('fuel_channel_desc', currentAppLanguage()),
       importance: Importance.max,
       playSound: true,
     );
 
-    const AndroidNotificationChannel serviceChannel = AndroidNotificationChannel(
+    final AndroidNotificationChannel serviceChannel = AndroidNotificationChannel(
       serviceChannelId,
-      serviceChannelName,
-      description: 'Reminders for oil change and repairs',
+      translate('service_channel_name', currentAppLanguage()),
+      description: translate('service_channel_desc', currentAppLanguage()),
       importance: Importance.max,
       playSound: true,
     );
@@ -329,8 +336,8 @@ class NotificationService {
 
     await _zonedSchedule(
       id: 999,
-      title: 'Alarm test',
-      body: 'Notification system is working.',
+      title: translate('alarm_test_title', currentAppLanguage()),
+      body: translate('alarm_test_body', currentAppLanguage()),
       scheduledDate: scheduledDate,
       details: _details(),
     );
@@ -350,19 +357,19 @@ class NotificationService {
 
     await _zonedSchedule(
       id: 101,
-      title: 'Car Service Reminder 🚗',
-      body: 'Please check your car oil and service status.',
+      title: translate('service_reminder_title', currentAppLanguage()),
+      body: translate('oil_status_check_body', currentAppLanguage()),
       scheduledDate: scheduledDate,
       details: _details(
-        actions: const [
+        actions: [
           AndroidNotificationAction(
             'service_completed',
-            'Service Completed',
+            translate('service_completed', currentAppLanguage()),
             cancelNotification: true,
           ),
           AndroidNotificationAction(
             'open_services',
-            'Open Services',
+            translate('open_services', currentAppLanguage()),
             showsUserInterface: true,
           ),
         ],
@@ -397,8 +404,11 @@ class NotificationService {
 
           await _notificationsPlugin.show(
             102,
-            "Morning $fuelType price ☕⛽",
-            "Cheapest nearby: $name at €$currentPrice",
+            translate('morning_fuel_title', currentAppLanguage()),
+            translate('morning_fuel_body', currentAppLanguage(), {
+              'name': name,
+              'price': '$currentPrice',
+            }),
             _details(
               channelId: fuelPriceChannelId,
               channelName: fuelPriceChannelName,

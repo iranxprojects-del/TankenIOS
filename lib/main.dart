@@ -15,12 +15,14 @@ import 'package:hive_flutter/hive_flutter.dart'; // برای رفع ارور ini
 import 'package:workmanager/workmanager.dart'; // برای رفع ارور Workmanager
 //import 'package:latlong/latlong.dart' as latLng;
 import 'translations.dart';
+import 'german_cities.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'oil_analysis_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'app_license_manager.dart';
 import 'purchase_manager.dart';
+import 'consent_pages.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:in_app_update/in_app_update.dart';
@@ -168,28 +170,25 @@ class AdakTenkenPro extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
 
-    return ValueListenableBuilder(
-      valueListenable: Hive.box('settingsBox').listenable(keys: ['languageCode']),
-      builder: (context, Box box, child) {
-        final String currentLang = box.get('languageCode', defaultValue: 'fa');//defaultValue: 'en'
+    const String currentLang = 'fa';
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-        title: translate('app_title', currentLang),
-          // 💡 نکته طلایی برای راست‌چین شدن خودکار زبان فارسی:
-        locale: Locale(currentLang),
-
-        localizationsDelegates: const [
+      title: translate('app_title', currentLang),
+      locale: const Locale(currentLang),
+      localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
-        supportedLocales: supportedLanguages.map((l) => Locale(l['code']!)).toList(),
-        home: FuelDashboard(currentLang: currentLang),
-      
-    );
-    },
+      supportedLocales: const [Locale('fa')],
+      builder: (context, child) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+      home: const FuelDashboard(currentLang: currentLang),
     );
   }
 }
@@ -381,19 +380,19 @@ void _showEmailSetupDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('تنظیمات یادآور ایمیلی'),
+        title: Text(translate('email_reminder_title', widget.currentLang)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('برای دریافت هشدارهای سرویس دوره‌ای، ایمیل خود را وارد کنید:'),
+            Text(translate('email_reminder_intro', widget.currentLang)),
             const SizedBox(height: 12),
             TextField(
               controller: emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'آدرس ایمیل',
-                prefixIcon: Icon(Icons.email),
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: translate('email_label', widget.currentLang),
+                prefixIcon: const Icon(Icons.email),
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
@@ -401,36 +400,31 @@ void _showEmailSetupDialog(BuildContext context) {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('انصراف', style: TextStyle(color: Colors.grey)),
+            child: Text(translate('cancel', widget.currentLang), style: const TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             onPressed: () {
               final email = emailController.text.trim();
               if (email.isNotEmpty && email.contains('@') && email.contains('.')) {
-                // ذخیره ایمیل در لوکال استوریج
                 box.put('userEmail', email);
-                
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('ایمیل با موفقیت ثبت و آلارم فعال شد.'),
+                  SnackBar(
+                    content: Text(translate('email_saved', widget.currentLang)),
                     backgroundColor: Colors.green,
                   ),
                 );
-                
-                // در صورت نیاز به تست ارسال در همین لحظه، می‌توانید تابع زیر را از کامنت خارج کنید:
                 _sendEmailReminder();
-                
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('لطفا یک ایمیل معتبر وارد کنید.'),
+                  SnackBar(
+                    content: Text(translate('email_invalid', widget.currentLang)),
                     backgroundColor: Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('ذخیره و فعال‌سازی'),
+            child: Text(translate('email_save_activate', widget.currentLang)),
           ),
         ],
       ),
@@ -492,7 +486,7 @@ void _showTankenPremiumDialog(BuildContext context) {
   final int tier = timelineManager.currentTier;
   final bool isExpired = timelineManager.isFreeTierExpired;
   final int days = timelineManager.remainingFreeDays;
-  final bool isRtl = currentLang == 'fa';
+  final bool isRtl = currentLang == 'fa' || currentLang == 'ar';
 
   // اگر در فاز ۲ باشیم (Tier 3)
   if (tier == 3) {
@@ -509,9 +503,7 @@ void _showTankenPremiumDialog(BuildContext context) {
           children: [
             Expanded(
               child: Text(
-                isRtl 
-                    ? 'اخطار: تنها $days روز تا قطعی کامل سرویس‌ها باقیست.'
-                    : 'Warning: Only $days days left until full access is blocked.',
+                translate('premium_days_left_warning', currentLang, {'days': '$days'}),
                 style: TextStyle(
                   color: Colors.red.shade900,
                   fontWeight: FontWeight.bold,
@@ -527,7 +519,7 @@ void _showTankenPremiumDialog(BuildContext context) {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
               onPressed: () => PurchaseManager().buyPremium(),
-              child: Text(isRtl ? 'تمدید ۶ ماهه' : 'Extend 6 Months', style: const TextStyle(fontSize: 11)),
+              child: Text(translate('extend_6_months', currentLang), style: const TextStyle(fontSize: 11)),
             ),
           ],
         ),
@@ -546,20 +538,7 @@ void _showTankenPremiumDialog(BuildContext context) {
   }
 
   // ۲. تنظیم متن دکمه خرید بر اساس زبان
-  String buttonText = "";
-  switch (currentLang) {
-    case 'fa':
-      buttonText = 'حذف آگهی + نسخه پرمیوم';
-      break;
-    case 'de':
-      buttonText = 'Keine Werbung + Premium';
-      break;
-    case 'tr':
-      buttonText = 'Reklamları Kaldır + Premium';
-      break;
-    default:
-      buttonText = 'Remove Ads + Premium';
-  }
+  String buttonText = translate('remove_ads_premium', currentLang);
 
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -594,9 +573,7 @@ void _showTankenPremiumDialog(BuildContext context) {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  currentLang == 'fa'
-                      ? 'استفاده نامحدود از تمام امکانات اپلیکیشن'
-                      : (currentLang == 'de' ? 'Unbegrenzter Zugriff auf alle Funktionen' : 'Unlimited access to all features'),
+                  translate('unlimited_access_features', currentLang),
                   style: TextStyle(
                     color: isExpired ? Colors.red.shade700 : Colors.blue.shade700,
                     fontSize: 11,
@@ -641,62 +618,74 @@ Future<void> _checkNotificationPermissionOnFirstLaunch() async {
   bool isFirstLaunch = settingsBox.get('isFirstLaunch', defaultValue: true);
 
   if (isFirstLaunch) {
-    // درخواست اجازه نوتیفیکیشن از سیستم‌عامل
-    final bool granted = await NotificationService.requestPermission(); // یا متد پیش‌فرض خودت
-    
-    // پرچم را کاذب می‌کنیم تا در اجراهای بعدی این پاپ‌آپ باز نشود
     await settingsBox.put('isFirstLaunch', false);
   }
 }
 
 // ۲. نمایش دیسکلیمور قانونی لوکیشن و گرفتن تاییدیه از کاربر
 Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
-  bool userConsent = false;
-
-  await showDialog(
-    context: context,
-    barrierDismissible: false, // کاربر حتماً باید یکی از دکمه‌ها را انتخاب کند
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.gavel, color: Colors.blueAccent),
-            SizedBox(width: 10),
-            Expanded( // 👈 اضافه شدن برای جلوگیری از Overflow
-      child:Text('Legal Privacy Consent', softWrap: true,),
-            ),
-          ],
-        ),
-        content: const Text(
-          'In compliance with data protection regulations (GDPR), '
-          'this application requires your explicit consent to access your device\'s location. '
-          'This data is used solely to fetch nearby gas station prices in real-time. '
-          '\n\nImportant: Your location data is processed locally, transmitted securely via encrypted protocols, '
-          'and is NEVER stored, saved, or tracked on any server or database.',
-          style: TextStyle(fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              userConsent = false;
-              Navigator.of(context).pop();
-            },
-            child: const Text('Decline', style: TextStyle(color: Colors.red)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              userConsent = true;
-              Navigator.of(context).pop();
-            },
-            child: const Text('Accept & Proceed'),
-          ),
-        ],
-      );
-    },
-  );
-
-  return userConsent;
+  return showLocationConsentPage(context, widget.currentLang);
 }
+
+  Future<bool> _ensureNavigationConsentAndOsPermission() async {
+    if (kIsWeb) return true;
+
+    if (!mounted) return false;
+    final accepted = await showLocationConsentPage(context, widget.currentLang);
+    if (!accepted) return false;
+    if (!mounted) return false;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(translate('os_permission_denied_location', widget.currentLang))),
+        );
+      }
+      if (permission == LocationPermission.deniedForever) {
+        await Geolocator.openAppSettings();
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<bool> _ensureNotificationConsentAndOsPermission() async {
+    if (kIsWeb) return true;
+
+    if (!mounted) return false;
+    final accepted = await showNotificationConsentPage(context, widget.currentLang);
+    if (!accepted) return false;
+    if (!mounted) return false;
+
+    var status = await Permission.notification.status;
+    var pluginGranted = status.isGranted || status.isLimited;
+    if (!pluginGranted && !status.isPermanentlyDenied) {
+      pluginGranted = await NotificationService.requestPermission();
+      status = await Permission.notification.status;
+    }
+    if (!pluginGranted &&
+        (status.isDenied || status.isRestricted) &&
+        !status.isPermanentlyDenied) {
+      status = await Permission.notification.request();
+    }
+    if (status.isGranted || status.isLimited || pluginGranted) {
+      return true;
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(translate('os_permission_denied_notification', widget.currentLang))),
+      );
+    }
+    if (status.isPermanentlyDenied) {
+      _showNotificationSettingsDialog();
+    }
+    return false;
+  }
 
 
   Future<Position> _getFastPosition({bool preferFresh = false}) async {
@@ -720,11 +709,6 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
 
   Future<void> fetchPrices({double? lat, double? lng}) async {
 
-    if (!AppLicenseManager.isFeatureActive('oil_price')) {
-      AppLicenseManager.showPremiumDialog(context);
-      return;
-    }
-
     setState(() => isLoading = true);
 
     try {
@@ -732,29 +716,12 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
       double searchLng = lng ?? 0.0;
 
       if (lat == null || lng == null) {
-        // 1. Check kardan va darkhast-e Permission be tore dasti
-        LocationPermission permission = await Geolocator.checkPermission();
-
-        if (permission == LocationPermission.denied ||
-            permission == LocationPermission.deniedForever) {
-          permission = await Geolocator.requestPermission();
-        }
-
-        // Agar karbar ejaze nadad, loading ra bando va kharej sho
-        if (permission != LocationPermission.always &&
-            permission != LocationPermission.whileInUse) {
+        final allowed = await _ensureNavigationConsentAndOsPermission();
+        if (!allowed) {
           setState(() => isLoading = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                "Location permission is required to find local stations.",
-              ),
-            ),
-          );
           return;
         }
 
-        // 2. Gereftan-e location-e daghigh
         Position position = await _getFastPosition();
 
         searchLat = position.latitude;
@@ -817,7 +784,7 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
     searchHistory = []; // خالی کردن لیست در لحظه
   });
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Search history cleared.')),
+    SnackBar(content: Text(translate('history_cleared', widget.currentLang))),
   );
 }
 
@@ -846,24 +813,108 @@ Future<void> _saveSearchHistory(String query) async {
 }
 
   Future<List<Map<String, String>>> _searchPlace(String query) async {
-    final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
-      'q': query,
-      'format': 'json',
-      'limit': '6',
-      'countrycodes': 'de',
-    });
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
 
-    final response = await http
-        .get(
-          uri,
-          headers: {
-            'User-Agent': 'GermanyFuelApp/1.0',
-            'Accept': 'application/json',
-          },
-        )
-        .timeout(const Duration(seconds: 15));
+    final local = matchGermanCities(trimmed);
+    if (local.isNotEmpty) {
+      return local.map((c) => c.toPlace()).toList();
+    }
 
-    if (response.statusCode == 200) {
+    final variants = germanPlaceQueryVariants(trimmed);
+    for (final variant in variants) {
+      final photon = await _searchPhoton(variant);
+      if (photon.isNotEmpty) return photon;
+    }
+    for (final variant in variants) {
+      final nominatim = await _searchNominatim(variant);
+      if (nominatim.isNotEmpty) return nominatim;
+    }
+    return [];
+  }
+
+  bool _coordsInGermany(double lat, double lng) =>
+      lat >= 47.2 && lat <= 55.15 && lng >= 5.7 && lng <= 15.1;
+
+  Future<List<Map<String, String>>> _searchPhoton(String query) async {
+    try {
+      final uri = Uri.https('photon.komoot.io', '/api/', {
+        'q': query,
+        'limit': '8',
+        'lang': 'de',
+        'lat': '51.16',
+        'lon': '10.45',
+      });
+      final response = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return [];
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final features = data['features'] as List<dynamic>? ?? [];
+      final results = <Map<String, String>>[];
+      for (final feature in features) {
+        if (feature is! Map) continue;
+        final props = feature['properties'];
+        final geometry = feature['geometry'];
+        if (props is! Map || geometry is! Map) continue;
+        final coords = geometry['coordinates'];
+        if (coords is! List || coords.length < 2) continue;
+        final lng = (coords[0] as num).toDouble();
+        final lat = (coords[1] as num).toDouble();
+        final country = (props['countrycode'] ?? props['country'] ?? '')
+            .toString()
+            .toUpperCase();
+        if (country.isNotEmpty &&
+            country != 'DE' &&
+            country != 'DEU' &&
+            !country.contains('GERMANY') &&
+            !country.contains('DEUTSCHLAND')) {
+          continue;
+        }
+        if (!_coordsInGermany(lat, lng)) continue;
+        final name = (props['name'] ?? query).toString();
+        final city = (props['city'] ?? '').toString();
+        final state = (props['state'] ?? '').toString();
+        final display = [
+          name,
+          if (city.isNotEmpty && city != name) city,
+          if (state.isNotEmpty) state,
+          'Deutschland',
+        ].join(', ');
+        results.add({
+          'display_name': display,
+          'lat': lat.toString(),
+          'lon': lng.toString(),
+        });
+      }
+      return results;
+    } catch (e) {
+      debugPrint('Photon search error: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, String>>> _searchNominatim(String query) async {
+    try {
+      final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
+        'q': query,
+        'format': 'json',
+        'limit': '8',
+        'countrycodes': 'de',
+        'addressdetails': '1',
+        'accept-language': 'de,en',
+      });
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'User-Agent': 'TankenDE/1.0 (support.smartcarmanager@gmail.com)',
+              'Accept': 'application/json',
+              'Accept-Language': 'de,en',
+            },
+          )
+          .timeout(const Duration(seconds: 12));
+      if (response.statusCode != 200) return [];
       final List<dynamic> data = json.decode(response.body);
       return data.map<Map<String, String>>((dynamic item) {
         return <String, String>{
@@ -871,26 +922,46 @@ Future<void> _saveSearchHistory(String query) async {
           'lat': item['lat']?.toString() ?? '',
           'lon': item['lon']?.toString() ?? '',
         };
+      }).where((place) {
+        final lat = double.tryParse(place['lat'] ?? '');
+        final lng = double.tryParse(place['lon'] ?? '');
+        return lat != null && lng != null && _coordsInGermany(lat, lng);
       }).toList();
+    } catch (e) {
+      debugPrint('Nominatim search error: $e');
+      return [];
     }
-    return [];
   }
 
   Future<void> _updatePlaceSuggestions(String query) async {
-    if (query.trim().length < 3) {
+    final trimmed = query.trim();
+    if (trimmed.length < 2) {
       setState(() {
         placeSuggestions = [];
       });
       return;
     }
 
-    try {
-      final suggestions = await _searchPlace(query);
+    final local = matchGermanCities(trimmed).map((c) => c.toPlace()).toList();
+    if (local.isNotEmpty && mounted) {
       setState(() {
-        placeSuggestions = suggestions;
+        placeSuggestions = local;
+      });
+    }
+
+    try {
+      final suggestions = await _searchPlace(trimmed);
+      if (!mounted) return;
+      setState(() {
+        placeSuggestions = suggestions.isNotEmpty ? suggestions : local;
       });
     } catch (e) {
-      print('Suggestion Error: $e');
+      debugPrint('Suggestion Error: $e');
+      if (mounted && local.isNotEmpty) {
+        setState(() {
+          placeSuggestions = local;
+        });
+      }
     }
   }
 
@@ -951,7 +1022,7 @@ Future<void> _performSearch() async {
     if (lat == null || lng == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to determine coordinates.')),
+          SnackBar(content: Text(translate('error_coords', widget.currentLang))),
         );
       }
       return;
@@ -971,13 +1042,14 @@ Future<void> _performSearch() async {
 
     // ۴. دریافت لیست ایستگاه‌های جدید
     await _searchStations(lat, lng, query);
+    _moveMapCamera(lat, lng);
     _activateFullMapSearchView();
     
   } catch (e) {
     print('Search Error: $e');
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Search failed. Please try again.')),
+        SnackBar(content: Text(translate('error_search_failed', widget.currentLang))),
       );
     }
   } finally {
@@ -991,42 +1063,70 @@ Future<void> _performSearch() async {
   }
 }
 
-
-Future<void> _searchNearby() async {
-  // ۱. اول از همه پاپ‌آپ قانونی را نشان بده
-  bool hasConsent = await _showLegalLocationDisclaimer(context);
-  
-  // اگر تایید نکرد، کلاً عملیات را متوقف کن
-  if (!hasConsent) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Search cancelled. Location permission is required.')),
-    );
+Future<void> _selectPlaceSuggestion(Map<String, String> suggestion) async {
+  final lat = double.tryParse(suggestion['lat'] ?? '');
+  final lng = double.tryParse(suggestion['lon'] ?? '');
+  if (lat == null || lng == null) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(translate('error_coords', widget.currentLang))),
+      );
+    }
     return;
   }
 
-  // ۲. اگر کاربر تایید کرد، حالا پردازش را شروع کن
+  final displayName =
+      suggestion['display_name']?.trim().isNotEmpty == true
+          ? suggestion['display_name']!.trim()
+          : _searchController.text.trim();
+
+  setState(() {
+    isSearchLoading = true;
+    placeSuggestions = [];
+    userLat = lat;
+    userLng = lng;
+    _searchController.text = displayName;
+  });
+  _searchFocusNode.unfocus();
+
+  try {
+    await _saveLastLocation(lat, lng);
+    await _saveSearchHistory(displayName);
+    await _searchStations(lat, lng, displayName);
+    _moveMapCamera(lat, lng);
+    _activateFullMapSearchView();
+  } catch (e) {
+    debugPrint('Suggestion search error: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(translate('error_search_failed', widget.currentLang)),
+        ),
+      );
+    }
+  } finally {
+    if (mounted) {
+      setState(() => isSearchLoading = false);
+    }
+  }
+}
+
+
+Future<void> _searchNearby() async {
+  final hasConsent = await _ensureNavigationConsentAndOsPermission();
+  if (!hasConsent) return;
+
   setState(() {
     isSearchLoading = true;
     _searchController.clear();
   });
 
   try {
-    // بررسی اجازه دسترسی سیستمی اندروید/آی‌او‌اس
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
-        throw 'Location permissions are denied.';
-      }
-    }
-
-    // گرفتن موقعیت
     Position position = await _getFastPosition(preferFresh: true);
 
     userLat = position.latitude;
     userLng = position.longitude;
 
-    // گرفتن ایستگاه‌ها
     await _searchStations(userLat, userLng);
     _fitMapToSearchResults();
     _activateFullMapSearchView();
@@ -1034,7 +1134,7 @@ Future<void> _searchNearby() async {
   } catch (e) {
     debugPrint('Location Error: $e');
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Error: $e')),
+      SnackBar(content: Text(translate('error_generic', widget.currentLang, {'error': '$e'}))),
     );
   } finally {
     if (mounted) {
@@ -1383,10 +1483,10 @@ out center;
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // ~5 km from center (map always shows this window, even if the list is wider)
       const dLat = 0.045;
       const dLng = 0.07;
       try {
+        _mapController.move(ll.LatLng(_mapCenterLat, _mapCenterLng), 13);
         _mapController.fitCamera(
           CameraFit.bounds(
             bounds: LatLngBounds(
@@ -1403,27 +1503,31 @@ out center;
     });
   }
 
-  Future<void> _openMap(double lat, double lng) async {
-    if (!AppLicenseManager.isFeatureActive('open_link_navigator')) {
-      AppLicenseManager.showPremiumDialog(context);
-      return;
-    }
+  void _moveMapCamera(double lat, double lng) {
+    _mapCenterLat = lat;
+    _mapCenterLng = lng;
+    _fitMapToSearchResults();
+  }
 
+  Future<void> _openMap(double lat, double lng) async {
     int tier = AppTimelineManager().currentTier;
     bool isPremium = PurchaseManager().isPremiumUser.value;
 
     // 🔒 فاز ۴ (روز ۹۰ به بعد): قفل کامل پمپ‌بنزین‌ها و هدایت به خرید
     if (!isPremium && tier >= 4) {
-      _showTankenPremiumDialog(context); // دیالوگی که در بدنه اصلی دارید
+      _showTankenPremiumDialog(context);
       return;
     }
 
-    // 📺 فاز ۳ (روز ۶۰ تا ۹۰): نمایش ویدیو طولانی قبل از باز شدن نقشه
-    if (!isPremium && tier == 3) {
+    final allowed = await _ensureNavigationConsentAndOsPermission();
+    if (!allowed || !mounted) return;
+
+    // 📺 روز ۳۰ تا ۸۹: ویدیو rewarded قبل از باز شدن نقشه
+    if (!isPremium && (tier == 2 || tier == 3)) {
       AppAdManager().showNavigationRewardedAd(() async {
         await _openNavigation(destLat: lat, destLng: lng);
       });
-      return; // توقف اجرای خطوط بعدی تا زمان اتمام تبلیغ
+      return;
     }
 
     await _openNavigation(destLat: lat, destLng: lng);
@@ -1869,6 +1973,7 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchStations(userLat, userLng);
+      _fitMapToSearchResults();
       _loadBannerAd();
       _scheduleDeferredStartupWork();
     });
@@ -1888,7 +1993,6 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
       loadOfflineData();
       _loadAnalysisData();
       _checkThreeMonthMileageReminder();
-      _checkNotificationPermissions();
       _checkAndForceUpdate();
     });
   }
@@ -1942,24 +2046,23 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text(
-            translate('notification_disabled_title', widget.currentLang) ?? 'هشدار نوتیفیکیشن',
+            translate('notification_disabled_title', widget.currentLang),
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           content: Text(
-             translate('notification_disabled_msg', widget.currentLang) ?? 
-             'نوتیفیکیشن‌های برنامه در تنظیمات گوشی غیرفعال شده‌اند. برای دریافت هشدارهای سرویس خودرو، لطفاً آن را فعال کنید.',
+             translate('notification_disabled_msg', widget.currentLang),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(context).pop(), // کاربر می‌تواند بی‌خیال شود
-              child: Text(translate('cancel', widget.currentLang) ?? 'لغو'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(translate('cancel', widget.currentLang)),
             ),
             TextButton(
               onPressed: () {
-                openAppSettings(); // این متد مستقیماً صفحه تنظیمات همین اپلیکیشن را در گوشی باز می‌کند
+                openAppSettings();
                 Navigator.of(context).pop();
               },
-              child: Text(translate('open_settings', widget.currentLang) ?? 'تنظیمات گوشی'),
+              child: Text(translate('open_settings', widget.currentLang)),
             ),
           ],
         );
@@ -2189,10 +2292,8 @@ Future<void> _refreshAllMaintenanceReminders() async {
 
     await NotificationService.scheduleMaintenanceReminder(
       itemKey: 'master',
-      title: widget.currentLang == 'fa' ? 'یادآور سرویس خودرو 🔧' : 'Car Service Reminder 🔧',
-      body: widget.currentLang == 'fa'
-          ? 'موعد سرویس برخی قطعات رسیده است. لطفاً صفحه سرویس ماشین را بررسی کنید.'
-          : 'Service time has arrived for some items. Please check the car service page.',
+      title: translate('snooze_reminder_title', widget.currentLang),
+      body: translate('service_due_notice', widget.currentLang),
       firstRun: scheduleTime,
       repeatDaily: true,
       payload: 'master',
@@ -2275,8 +2376,8 @@ Future<void> _refreshAllMaintenanceReminders() async {
                 controller: kmIntervalController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: widget.currentLang == 'fa' ? 'فاصله تعویض/سرویس (کیلومتر)' : 'Service Interval (KM)',
-                  hintText: 'e.g. 15000',
+                  labelText: translate('reminder_interval_km', widget.currentLang),
+                  hintText: translate('example_km', widget.currentLang),
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.speed),
                 ),
@@ -2288,8 +2389,8 @@ Future<void> _refreshAllMaintenanceReminders() async {
                 controller: daysIntervalController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: widget.currentLang == 'fa' ? 'دوره تناوب سرویس (تعداد روز)' : 'Service Period (Days)',
-                  hintText: 'e.g. 365',
+                  labelText: translate('reminder_interval_days', widget.currentLang),
+                  hintText: translate('example_days', widget.currentLang),
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.calendar_today_outlined),
                 ),
@@ -2673,29 +2774,29 @@ Future<void> _openGoogleMapsForParkingFallback({
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Add Custom Service/Part"),
+        title: Text(translate('add_custom_service', widget.currentLang)),
         content: TextField(
-          decoration: const InputDecoration(
-            hintText: "e.g. Fuel Pump, Battery...",
+          decoration: InputDecoration(
+            hintText: translate('custom_service_hint', widget.currentLang),
           ),
           onChanged: (val) => newType = val,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
+            child: Text(translate('cancel', widget.currentLang)),
           ),
           ElevatedButton(
             onPressed: () {
               if (newType.isNotEmpty) {
                 setState(() {
-                  serviceCategories.add(newType); // اضافه کردن به لیست
-                  selectedServiceType = newType; // انتخاب خودکار آیتم جدید
+                  serviceCategories.add(newType);
+                  selectedServiceType = newType;
                 });
                 Navigator.pop(context);
               }
             },
-            child: const Text("Add"),
+            child: Text(translate('add', widget.currentLang)),
           ),
         ],
       ),
@@ -2744,9 +2845,7 @@ Future<void> _openGoogleMapsForParkingFallback({
             const Icon(Icons.block, size: 80, color: Colors.redAccent),
             const SizedBox(height: 16),
             Text(
-              widget.currentLang == 'fa' 
-                  ? 'دسترسی به بخش سرویس قطع شده است. برای استفاده نامحدود ارتقا دهید.' 
-                  : 'Service access is blocked. Upgrade to premium to unlock.',
+              translate('service_blocked', widget.currentLang),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
@@ -2762,8 +2861,8 @@ Future<void> _openGoogleMapsForParkingFallback({
     );
   }
 
-  // 📺 فاز ۲: تماشای ویدیو برای آزادسازی موقت تب سرویس
-  if (!isPremium && tier == 3 && !_isServiceUnlockedForSession) {
+  // 📺 روز ۳۰ تا ۸۹: تماشای ویدیو برای آزادسازی موقت تب سرویس
+  if (!isPremium && (tier == 2 || tier == 3) && !_isServiceUnlockedForSession) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -2773,9 +2872,7 @@ Future<void> _openGoogleMapsForParkingFallback({
             const Icon(Icons.ondemand_video, size: 80, color: Colors.orange),
             const SizedBox(height: 16),
             Text(
-              widget.currentLang == 'fa' 
-                  ? 'برای مشاهده و ویرایش اطلاعات سرویس، ابتدا یک ویدیو تبلیغاتی تماشا کنید.' 
-                  : 'Watch a video to access and edit your service history.',
+              translate('service_watch_video_msg', widget.currentLang),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16),
             ),
@@ -2789,7 +2886,7 @@ Future<void> _openGoogleMapsForParkingFallback({
                   });
                 });
               },
-              child: const Text('تماشای ویدیو', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: Text(translate('watch_video', widget.currentLang), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
           ],
         ),
@@ -2835,7 +2932,7 @@ Future<void> _openGoogleMapsForParkingFallback({
                     labelText: translate('insurance_phone', widget.currentLang),
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.phone),
-                    hintText: 'e.g. 030123456',
+                    hintText: translate('phone_example', widget.currentLang),
                   ),
                   controller: TextEditingController(text: insurancePhone),
                   onChanged: (value) async {
@@ -2851,7 +2948,7 @@ Future<void> _openGoogleMapsForParkingFallback({
                           labelText: translate('phone_number', widget.currentLang),
                           border: const OutlineInputBorder(),
                           prefixIcon: const Icon(Icons.phone),
-                          hintText: 'e.g. 030123456',
+                          hintText: translate('phone_example', widget.currentLang),
                         ),
                         controller: TextEditingController(text: workshopPhone),
                         onChanged: (value) async {
@@ -2886,7 +2983,7 @@ Future<void> _openGoogleMapsForParkingFallback({
                                   _isEditingWorkshopPhone = true;
                                 });
                               },
-                              tooltip: 'Edit phone',
+                              tooltip: translate('edit_phone', widget.currentLang),
                             ),
                           ],
                         ),
@@ -2953,11 +3050,11 @@ Future<void> _openGoogleMapsForParkingFallback({
             items: [
               DropdownMenuItem(
                 value: '4season', 
-                child: Text(widget.currentLang == 'fa' ? '۴ فصل' : '4-Seasons')
+                child: Text(translate('tire_4season', widget.currentLang))
               ),
               DropdownMenuItem(
                 value: '2season', 
-                child: Text(widget.currentLang == 'fa' ? '۲ فصل (ت/ز)' : '2-Seasons')
+                child: Text(translate('tire_2season', widget.currentLang))
               ),
             ],
             onChanged: (String? newValue) async {
@@ -2993,19 +3090,22 @@ Future<void> _openGoogleMapsForParkingFallback({
                               showDialog(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  title: const Text('خطا در ثبت کیلومتر', style: TextStyle(color: Colors.red)),
-                                  content: Text('کیلومتر وارد شده ($entered) نمی‌تواند بیشتر از کیلومتر فعلی ماشین ($currentKm) باشد!'),
+                                  title: Text(translate('km_error_title', widget.currentLang), style: const TextStyle(color: Colors.red)),
+                                  content: Text(translate('km_error_body', widget.currentLang, {
+                                    'entered': '$entered',
+                                    'current': currentKm,
+                                  })),
                                   actions: [
                                     TextButton(
                                       onPressed: () {
                                         setState(() {
-                                          item.mileage = ''; // پاک کردن مقدار اشتباه
+                                          item.mileage = '';
                                           item.isConfigured = _isMaintenanceItemConfigured(item);
                                         });
                                         _saveMaintenanceData();
                                         Navigator.pop(context);
                                       },
-                                      child: const Text('متوجه شدم، اصلاح می‌کنم'),
+                                      child: Text(translate('km_error_ok', widget.currentLang)),
                                     ),
                                   ],
                                 ),
@@ -3017,8 +3117,11 @@ Future<void> _openGoogleMapsForParkingFallback({
                           showDialog(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('هشدار: اختلاف کیلومتر زیاد', style: TextStyle(color: Colors.red)),
-                              content: Text('مقدار وارد شده (${item.mileage}) با کیلومتر فعلی ماشین ($currentKm) بیش از ۳۰,۰۰۰ کیلومتر اختلاف دارد. آیا مطمئن هستید؟'),
+                              title: Text(translate('km_diff_title', widget.currentLang), style: const TextStyle(color: Colors.red)),
+                              content: Text(translate('km_diff_body', widget.currentLang, {
+                                'entered': item.mileage,
+                                'current': currentKm,
+                              })),
                               actions: [
                                 TextButton(
                                   onPressed: () {
@@ -3029,11 +3132,11 @@ Future<void> _openGoogleMapsForParkingFallback({
                                     _saveMaintenanceData();
                                     Navigator.pop(context);
                                   },
-                                  child: const Text('خیر، اصلاح می‌کنم'),
+                                  child: Text(translate('km_diff_no', widget.currentLang)),
                                 ),
                                 ElevatedButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child: const Text('بله، مطمئنم'),
+                                  child: Text(translate('km_diff_yes', widget.currentLang)),
                                 ),
                               ],
                             ),
@@ -3055,12 +3158,12 @@ Future<void> _openGoogleMapsForParkingFallback({
                           showDialog(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('کیلومتر فعلی ثبت نشده!'),
-                              content: const Text('لطفا ابتدا "کیلومتر فعلی" ماشین را در بالای صفحه وارد کنید.'),
+                              title: Text(translate('km_missing_title', widget.currentLang)),
+                              content: Text(translate('km_missing_body', widget.currentLang)),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
-                                  child: const Text('متوجه شدم'),
+                                  child: Text(translate('km_missing_ok', widget.currentLang)),
                                 )
                               ],
                             )
@@ -3091,11 +3194,11 @@ Future<void> _openGoogleMapsForParkingFallback({
                     padding: EdgeInsets.zero,
                     splashRadius: 15,
                     icon: const Icon(Icons.refresh, size: 20, color: Colors.lightGreen),
-                    tooltip: 'ثبت در کیلومتر فعلی',
+                    tooltip: translate('set_km_at_current', widget.currentLang),
                     onPressed: () async {
                       if (currentKm.isEmpty) {
                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('ابتدا کیلومتر فعلی را در بالای صفحه وارد کنید.'))
+                            SnackBar(content: Text(translate('km_enter_current_first', widget.currentLang)))
                          );
                          return;
                       }
@@ -3191,8 +3294,6 @@ Future<void> _openGoogleMapsForParkingFallback({
 GestureDetector(
   onTap: () async {
     if (!item.alarmEnabled) {
-      // اگر لاستیک ۲ فصل نباشد، حتماً باید تاریخ پر شده باشد
-      //if (item.serviceDate.trim().isEmpty && !(item.key == 'tires' && item.tireType == '2season')) {
         final is2SeasonTire = (item.key == 'tires' && item.tireType == '2season');
         if (item.serviceDate.trim().isEmpty && !is2SeasonTire) {
         showDialog(
@@ -3203,14 +3304,10 @@ GestureDetector(
               children: [
                 const Icon(Icons.warning_amber_rounded, color: Colors.orange),
                 const SizedBox(width: 8),
-                Text(widget.currentLang == 'fa' ? 'تنظیم تاریخ الزامی است' : 'Date Required'),
+                Text(translate('date_required_title', widget.currentLang)),
               ],
             ),
-            content: Text(
-              widget.currentLang == 'fa'
-                  ? 'لطفاً ابتدا تاریخ (سرویس قبلی) را تنظیم کنید، سپس اقدام به فعال‌سازی آلارم نمایید.'
-                  : 'Please set the date (previous service) first before enabling the alarm.',
-            ),
+            content: Text(translate('date_required_body', widget.currentLang)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
@@ -3221,6 +3318,8 @@ GestureDetector(
         );
         return; 
       }
+      final allowed = await _ensureNotificationConsentAndOsPermission();
+      if (!allowed || !mounted) return;
     }
 
     setState(() {
@@ -3296,6 +3395,7 @@ GestureDetector(
 
   // متد نمایش پیام به کاربر برای پشتیبانی
   void _showSupportDialog() {
+    final rtl = widget.currentLang == 'fa' || widget.currentLang == 'ar';
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -3303,41 +3403,42 @@ GestureDetector(
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
-          title: const Row(
-            textDirection: TextDirection.rtl,
+          title: Row(
+            textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
             children: [
-              Icon(Icons.support_agent, color: Color(0xff004d99)),
-              SizedBox(width: 8),
-              Text(
-                "پشتیبانی و پیشنهادات",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  fontFamily: 'Tahoma',
+              const Icon(Icons.support_agent, color: Color(0xff004d99)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  translate('support_title', widget.currentLang),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ],
           ),
-          content: const Text(
-            "شما می‌توانید مشکلات یا پیشنهادات خود را در مورد اپلیکیشن مستقیماً به ایمیل support.smartcarmanager@gmail.com ارسال کنید. آیا مایل به باز کردن برنامه ایمیل هستید؟",
-            textAlign: TextAlign.right,
-            textDirection: TextDirection.rtl,
-            style: TextStyle(fontFamily: 'Tahoma', fontSize: 14),
+          content: Text(
+            translate('support_body', widget.currentLang),
+            textAlign: rtl ? TextAlign.right : TextAlign.left,
+            textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+            style: const TextStyle(fontSize: 14),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("انصراف", style: TextStyle(color: Colors.red)),
+              child: Text(translate('cancel', widget.currentLang), style: const TextStyle(color: Colors.red)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xff004d99),
               ),
               onPressed: () {
-                Navigator.pop(context); // بستن دیالوگ
-                _sendSupportEmail(); // باز کردن ایمیل
+                Navigator.pop(context);
+                _sendSupportEmail();
               },
-              child: const Text("ارسال ایمیل", style: TextStyle(color: Colors.white)),
+              child: Text(translate('support_send_email', widget.currentLang), style: const TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -3358,8 +3459,8 @@ GestureDetector(
     scheme: 'mailto',
     path: 'support.smartcarmanager@gmail.com',
     query: _encodeQueryParameters({
-      'subject': 'پیشنهاد یا گزارش مشکل در اپلیکیشن',
-      'body': 'سلام تیم پشتیبانی،\n\nمن پیشنهاد یا مشکلی درباره اپلیکیشن داشتم که در زیر مطرح می‌کنم:\n\n',
+      'subject': translate('support_email_subject', widget.currentLang),
+      'body': translate('support_email_prefill', widget.currentLang),
     }),
   );
 
@@ -3369,8 +3470,8 @@ GestureDetector(
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('امکان باز کردن مستقیم برنامه ایمیل وجود ندارد. لطفاً به صورت دستی به ایمیل ما پیام دهید.'),
+          SnackBar(
+            content: Text(translate('support_email_failed', widget.currentLang)),
             backgroundColor: Colors.red,
           ),
         );
@@ -3380,7 +3481,7 @@ GestureDetector(
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('خطایی در اجرای برنامه ایمیل رخ داد: $e'),
+          content: Text(translate('support_email_error', widget.currentLang, {'error': '$e'})),
           backgroundColor: Colors.red,
         ),
       );
@@ -3416,11 +3517,14 @@ GestureDetector(
               ),
             ],
             selected: {parkingViewMode},
-            onSelectionChanged: (Set<String> newSelection) {
-              setState(() {
-                parkingViewMode = newSelection.first;
-              });
-            },
+              onSelectionChanged: (Set<String> newSelection) {
+                setState(() {
+                  parkingViewMode = newSelection.first;
+                });
+                if (newSelection.first == 'map') {
+                  _fitMapToSearchResults();
+                }
+              },
           ),
         ),
 
@@ -3442,10 +3546,10 @@ GestureDetector(
                           Icons.local_parking,
                           color: Colors.blue,
                         ),
-                        title: Text(s['name'] ?? 'Parkhaus'),
+                        title: Text(s['name'] ?? translate('parking_garage', widget.currentLang)),
                         subtitle: Text("${s['street']} - ${s['dist']} km"),
                         trailing: Text(
-                          "${s['free_slots'] ?? 'N/A'}",
+                          "${s['free_slots'] ?? translate('not_available', widget.currentLang)}",
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.green,
@@ -3484,9 +3588,9 @@ Widget build(BuildContext context) {
 
               // نمایش یک پیغام کوچک در پایین صفحه جهت اطمینان از ریست شدن
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('⏱️ Timeline Reset Successfully!'),
-                  duration: Duration(seconds: 2),
+                SnackBar(
+                  content: Text(translate('timeline_reset', widget.currentLang)),
+                  duration: const Duration(seconds: 2),
                 ),
               );
             }
@@ -3501,17 +3605,17 @@ Widget build(BuildContext context) {
         actions: [  
           IconButton(
                 icon: const Icon(Icons.mark_email_unread_outlined),
-                tooltip: 'تنظیم ایمیل یادآور',
+                tooltip: translate('email_tooltip', widget.currentLang),
                 onPressed: () => _showEmailSetupDialog(context),
               ),       
           IconButton(
             icon: const Icon(Icons.settings_applications),
             onPressed: () => Geolocator.openAppSettings(),
-            tooltip: 'Settings',
+            tooltip: translate('settings', widget.currentLang),
           ),
           IconButton(
             icon: const Icon(Icons.support_agent_outlined),
-            tooltip: 'پشتیبانی و پیشنهادات',
+            tooltip: translate('support_tooltip', widget.currentLang),
             onPressed: _showSupportDialog,
           ),
           // دکمه‌های زوم برای بزرگ و کوچک کردن همه چیز
@@ -3591,14 +3695,6 @@ Widget build(BuildContext context) {
           BottomNavigationBar(  
             currentIndex: _selectedIndex,
             onTap: (index) {
-              if (index == 1) {
-                if (!AppLicenseManager.isFeatureActive('car_service')) {
-                  // از ماه ۷ به بعد پاپ‌آپ باز می‌شود و با return جلوی تغییر تب گرفته می‌شود
-                  AppLicenseManager.showPremiumDialog(context);
-                  return; 
-                }
-              }
-
               int tier = AppTimelineManager().currentTier;
               bool isPremium = PurchaseManager().isPremiumUser.value;
 
@@ -3838,11 +3934,7 @@ Widget build(BuildContext context) {
                         return ListTile(
                           dense: true,
                           title: Text(suggestion['display_name']?.toString() ?? ''),
-                          onTap: () {
-                            _searchController.text = suggestion['display_name']?.toString() ?? '';
-                            setState(() => placeSuggestions = []);
-                            _performSearch();
-                          },
+                          onTap: () => _selectPlaceSuggestion(suggestion),
                         );
                       }),
                     ],
@@ -3869,6 +3961,9 @@ Widget build(BuildContext context) {
               selected: {fuelViewMode},
               onSelectionChanged: (Set<String> newSelection) {
                 setState(() => fuelViewMode = newSelection.first);
+                if (newSelection.first == 'map') {
+                  _fitMapToSearchResults();
+                }
               },
             ),
           ),
@@ -3932,6 +4027,9 @@ Widget build(BuildContext context) {
                     fuelViewMode = newSelection.first;
                     _searchFocusNode.unfocus();
                   });
+                  if (newSelection.first == 'map') {
+                    _fitMapToSearchResults();
+                  }
                 },
               ),
             ),
@@ -4104,11 +4202,7 @@ Widget build(BuildContext context) {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 13),
                       ),
-                      onTap: () {
-                        _searchController.text = suggestion['display_name']?.toString() ?? '';
-                        setState(() => placeSuggestions = []);
-                        _performSearch();
-                      },
+                      onTap: () => _selectPlaceSuggestion(suggestion),
                     );
                   }),
                   if (placeSuggestions.isNotEmpty && searchHistory.isNotEmpty)
@@ -4118,10 +4212,10 @@ Widget build(BuildContext context) {
                       padding: const EdgeInsets.fromLTRB(16, 4, 4, 0),
                       child: Row(
                         children: [
-                          const Expanded(
+                          Expanded(
                             child: Text(
-                              'Recent Searches',
-                              style: TextStyle(
+                              translate('recent_searches', widget.currentLang),
+                              style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
                                 fontWeight: FontWeight.w600,
@@ -4130,9 +4224,9 @@ Widget build(BuildContext context) {
                           ),
                           TextButton(
                             onPressed: _clearSearchHistory,
-                            child: const Text(
-                              'Clear',
-                              style: TextStyle(color: Colors.red, fontSize: 12),
+                            child: Text(
+                              translate('clear_history', widget.currentLang),
+                              style: const TextStyle(color: Colors.red, fontSize: 12),
                             ),
                           ),
                         ],
@@ -4314,8 +4408,8 @@ Widget build(BuildContext context) {
                                       ),
                                       onPressed: () => _selectFuelStation(s),
                                       tooltip: selectedStationId == s['id']?.toString()
-                                          ? 'Deselect station'
-                                          : 'Select station',
+                                          ? translate('deselect_station', widget.currentLang)
+                                          : translate('select_station', widget.currentLang),
                                     ),
                                     const SizedBox(height: 4),
                                     if (selectedFuel == 'parking')
@@ -4340,7 +4434,9 @@ Widget build(BuildContext context) {
                                                   BorderRadius.circular(4),
                                             ),
                                             child: Text(
-                                              "Spaces: ${s['free_slots'] ?? 'N/A'}",
+                                              translate('parking_spaces', widget.currentLang, {
+                                                'slots': '${s['free_slots'] ?? translate('not_available', widget.currentLang)}',
+                                              }),
                                               style: const TextStyle(
                                                 color: Colors.white,
                                                 fontSize: 11,
@@ -4350,7 +4446,7 @@ Widget build(BuildContext context) {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            "${s['price'] ?? 'Public'}",
+                                            "${s['price'] ?? translate('parking_public', widget.currentLang)}",
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
@@ -4526,7 +4622,7 @@ Future<void> _saveEmailSettings() async {
       }, SetOptions(merge: true));
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تنظیمات ارسال ایمیل با موفقیت ذخیره شد.')),
+        SnackBar(content: Text(translate('email_settings_saved', widget.currentLang))),
       );
     } catch (e) {
       print("Firestore Email Sync Error: $e");
@@ -4547,15 +4643,19 @@ Widget _buildEmailNotificationOption() {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.email_outlined, color: Colors.blueAccent),
-                  SizedBox(width: 8),
-                  Text(
-                    'ارسال هشدارهای مهم (TÜV) به ایمیل',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                ],
+              Expanded(
+                child: Row(
+                  children: [
+                    const Icon(Icons.email_outlined, color: Colors.blueAccent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        translate('email_tuv_title', widget.currentLang),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               Switch(
                 value: enableEmailReminders,
@@ -4574,7 +4674,7 @@ Widget _buildEmailNotificationOption() {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               decoration: InputDecoration(
-                hintText: 'ایمیل خود را وارد کنید (e.g. name@domain.com)',
+                hintText: translate('email_hint', widget.currentLang),
                 prefixIcon: const Icon(Icons.alternate_email),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
@@ -4587,8 +4687,8 @@ Widget _buildEmailNotificationOption() {
               child: Text(translate('save', widget.currentLang)),
             ),
             Text(
-              'سررسید مواردی همچون معاینه فنی (TÜV) رأس ساعت 09:00 صبح به این ایمیل ارسال خواهد شد.',
-              style: TextStyle(fontSize: 11, color: Colors.grey),
+              translate('email_tuv_note', widget.currentLang),
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
             )
           ]
         ],
@@ -4668,7 +4768,7 @@ Widget _buildEmailNotificationOption() {
       child: FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          initialCenter: ll.LatLng(userLat, userLng),
+          initialCenter: ll.LatLng(_mapCenterLat, _mapCenterLng),
           initialZoom: 15.0,
           onTap: (_, __) => _searchFocusNode.unfocus(),
           onPositionChanged: (camera, hasGesture) {
@@ -4680,7 +4780,7 @@ Widget _buildEmailNotificationOption() {
         children: [
           TileLayer(
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.tenken.adak',
+            userAgentPackageName: 'com.Hanno.tanken_DE_Smart',
             keepBuffer: 2,
             panBuffer: 1,
           ),
@@ -4750,7 +4850,7 @@ Widget _buildProfessionalMap({bool fill = true}) {
     child: FlutterMap(
       mapController: _mapController,
       options: MapOptions(
-        initialCenter: ll.LatLng(userLat, userLng),
+        initialCenter: ll.LatLng(_mapCenterLat, _mapCenterLng),
         initialZoom: 13.0,
         onTap: (_, __) => _searchFocusNode.unfocus(),
         onPositionChanged: (camera, hasGesture) {
@@ -4760,7 +4860,7 @@ Widget _buildProfessionalMap({bool fill = true}) {
       children: [
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'com.tenken.adak',
+          userAgentPackageName: 'com.Hanno.tanken_DE_Smart',
           keepBuffer: 2,
           panBuffer: 1,
         ),

@@ -9,6 +9,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
+import 'translations.dart';
 //import 'app_timeline_manager.dart';
 
 
@@ -62,7 +63,7 @@ class PurchaseManager {
     }, onDone: () {
       _purchaseSubscription?.cancel();
     }, onError: (error) {
-      _handleError("خطا در ارتباط با استریم: $error");
+      _handleError(translate('iap_stream_error', currentAppLanguage(), {'error': '$error'}));
     });
   }
 
@@ -111,10 +112,10 @@ class PurchaseManager {
           
         } else if (purchaseDetails.status == PurchaseStatus.error) {
           isProcessing.value = false;
-          _handleError(purchaseDetails.error?.message ?? "تراکنش ناموفق بود.");
+          _handleError(purchaseDetails.error?.message ?? translate('iap_failed', currentAppLanguage()));
         } else if (purchaseDetails.status == PurchaseStatus.canceled) {
           isProcessing.value = false;
-          _handleError("پرداخت توسط شما لغو شد.");
+          _handleError(translate('iap_cancelled', currentAppLanguage()));
         }
       }
     }
@@ -161,7 +162,7 @@ class PurchaseManager {
     final bool available = await _inAppPurchase.isAvailable();
     if (!available) {
       isProcessing.value = false;
-      _handleError("فروشگاه در حال حاضر در دسترس نیست.");
+      _handleError(translate('iap_store_unavailable', currentAppLanguage()));
       return;
     }
 
@@ -170,7 +171,7 @@ class PurchaseManager {
 
     if (response.productDetails.isEmpty) {
       isProcessing.value = false;
-      _handleError("محصول در گوگل پلی یافت نشد. شناسه بررسی شده: $premiumProductId");
+      _handleError(translate('iap_product_not_found', currentAppLanguage(), {'id': premiumProductId}));
       return;
     }
 
@@ -369,7 +370,7 @@ class AppAdManager {
   // نمایش ویدیوی طولانی هنگام کلیک روی گوگل مپ
   void showNavigationRewardedAd(VoidCallback onAdClosed) {
     int tier = AppTimelineManager().currentTier;
-    if (!_isRewardedLoaded || _rewardedAd == null || tier < 3 || PurchaseManager().isPremiumUser.value) {
+    if (!_isRewardedLoaded || _rewardedAd == null || tier < 2 || tier >= 4 || PurchaseManager().isPremiumUser.value) {
       onAdClosed();
       loadRewardedAd();
       return;
@@ -422,8 +423,8 @@ class AppTimelineManager {
    فازهای زمانی تانکن (Tiers):
    فاز 0: روز ۰ تا ۳ -> هیچ تبلیغی نیست.
    فاز 1: روز ۳ تا ۳۰ -> فقط بنر کوچک پایین صفحه‌ها.
-   فاز 2: روز ۳۰ تا ۶۰ -> بنر + تبلیغ بین‌صفحه‌ای هنگام تعویض تب‌ها (Parking, Diesel, E5, E10, Service).
-   فاز 3: روز ۶۰ تا ۹۰ -> بنر + بین‌صفحه‌ای + ویدیو کامل هنگام کلیک روی ناوبری مپ.
+   فاز 2: روز ۳۰ تا ۶۰ -> بنر + تبلیغ بین‌صفحه‌ای هنگام تعویض تب + ویدیو rewarded هنگام ناوبری و تب سرویس.
+   فاز 3: روز ۶۰ تا ۹۰ -> همان تبلیغات فاز ۲.
    فاز 4: روز ۹۰ به بعد -> قفل شدن کلیک پمپ بنزین‌ها و هدایت مستقیم به صفحه خرید پرمیوم.
   */
 

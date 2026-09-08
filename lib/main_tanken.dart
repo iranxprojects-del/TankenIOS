@@ -495,7 +495,6 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
   Future<void> fetchPrices({double? lat, double? lng}) async {
 
     if (!AppLicenseManager.isFeatureActive('oil_price')) {
-      AppLicenseManager.showPremiumDialog(context);
       return;
     }
 
@@ -887,7 +886,6 @@ Future<void> _searchNearby() async {
   Future<void> _openMap(double lat, double lng) async {
 
     if (!AppLicenseManager.isFeatureActive('open_link_navigator')) {
-      AppLicenseManager.showPremiumDialog(context);
       return;
     }
     // لینک استاندارد گوگل مپ برای مسیریابی (Direction) از مکان فعلی به مقصد
@@ -1978,14 +1976,6 @@ if (AppLicenseManager.shouldShowAds())
           BottomNavigationBar(  
             currentIndex: _selectedIndex,
             onTap: (index) {
-              if (index == 1) {
-                if (!AppLicenseManager.isFeatureActive('car_service')) {
-                  // از ماه ۷ به بعد پاپ‌آپ باز می‌شود و با return جلوی تغییر تب گرفته می‌شود
-                  AppLicenseManager.showPremiumDialog(context);
-                  return; 
-                }
-              }
-              
               // در غیر این صورت (ماه ۱ تا ۶ یا کاربر پرمیوم) تب به راحتی تغییر می‌کند
               setState(() => _selectedIndex = index);
             },
