@@ -49,8 +49,8 @@
 <false/>
 <!-- شناسه AdMob پروژه Tanken -->
     <key>GADApplicationIdentifier</key>
-    <string>ca-app-pub-1909436077319120~7670056666</string>
-
+    
+    <string>ca-app-pub-1909436077319120~6384895153</string>
     <key>SKAdNetworkItems</key>
     <array>
         <dict>

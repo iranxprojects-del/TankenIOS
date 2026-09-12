@@ -232,10 +232,10 @@ class AppAdManager {
   static const String _androidProdInterstitial = 'ca-app-pub-1909436077319120/5488626786';
   static const String _androidProdRewarded = 'ca-app-pub-1909436077319120/3065075207';
 
-  // iOS production ad units (Tanken iOS)
-  static const String _iosProdBanner = 'ca-app-pub-1909436077319120/5451087430';
-  static const String _iosProdInterstitial = 'ca-app-pub-1909436077319120/8707806167';
-  static const String _iosProdRewarded = 'ca-app-pub-1909436077319120/3539239961';
+  // iOS production ad units (same as IOS-RES-Cursor)
+  static const String _iosProdBanner = 'ca-app-pub-1909436077319120/8843537535';
+  static const String _iosProdInterstitial = 'ca-app-pub-1909436077319120/3862673598';
+  static const String _iosProdRewarded = 'ca-app-pub-1909436077319120/8731856899';
 
   static String _bannerUnitId = _androidTestBanner;
   static String _interstitialUnitId = _androidTestInterstitial;
