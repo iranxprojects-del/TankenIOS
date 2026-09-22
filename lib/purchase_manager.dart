@@ -2,6 +2,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -25,8 +26,15 @@ class PurchaseManager {
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
   
-  // شناسه محصول شما در گوگل پلی کنسول
-  final String premiumProductId = 'premiumunlock_tanken';// 'premiumunlock1';
+  /// Consumable تمدید ۶ماهه — شناسه واقعی استور
+  static const String premiumProductId = 'premiumunlock_tanken';
+  /// شناسه‌های قدیمی احتمالی؛ فقط برای consume و آزاد کردن «already own»
+  static const String legacyPremiumProductId = 'premium_tanken';
+  static const Set<String> _allPremiumProductIds = {
+    premiumProductId,
+    legacyPremiumProductId,
+    'premium_tanken_6m',
+  };
 
   // نوتیفایرهایی برای به‌روزرسانی خودکار ظاهر برنامه بدون درگیر کردن کدهای UI
   final ValueNotifier<bool> isPremiumUser = ValueNotifier<bool>(false);
@@ -47,6 +55,8 @@ class PurchaseManager {
     
     _initPurchaseStream();
     checkPremiumStatus();
+    // آزاد کردن خریدهای consume‌نشده (علت اصلی already own روی اندروید)
+    Future.microtask(() => _consumeAllOwnedAndroidPremiums());
   }
 
   /// بستن استریم جهت جلوگیری از لک حافظه (Memory Leak)
@@ -68,51 +78,47 @@ class PurchaseManager {
   }
 
   Future<void> _validatePremiumStatus() async {
+    AppTimelineManager().hydrateFromLocalCache();
+    AppTimelineManager().calculateCurrentStatus();
     var box = Hive.box('settingsBox');
-    bool hasPremiumFlag = box.get('isPremium', defaultValue: false);
-    String? purchaseDateStr = box.get('premiumPurchaseDate');
-
-    if (hasPremiumFlag && purchaseDateStr != null) {
-      DateTime purchaseDate = DateTime.parse(purchaseDateStr);
-      int daysPassed = DateTime.now().difference(purchaseDate).inDays;
-
-      if (daysPassed > premiumDurationDays) {
-        // 🔴 انقضای ۶ ماهه: لغو اشتراک
-        isPremiumUser.value = false;
-        await box.put('isPremium', false);
-
-        // تنظیم تاریخ دقیق پایان اشتراک به عنوان مبدأ جدید فاز ۲
-        DateTime expirationDate = purchaseDate.add(Duration(days: premiumDurationDays));
-        await AppTimelineManager().setPostPremiumFallbackDate(expirationDate);
-      } else {
-        // 🟢 اشتراک همچنان معتبر است
-        isPremiumUser.value = true;
-      }
-    } else {
-      isPremiumUser.value = false;
-    }
+    await box.put('isPremium', isPremiumUser.value);
   }
 
-  // پردازش نتایج تراکنش‌ها منطبق بر منطق main_restaurants.dart
+  // خرید Consumable قابل تکرار است؛ قبل/بعد باید روی اندروید consume شود
   Future<void> _listenToPurchaseUpdated(List<PurchaseDetails> purchaseDetailsList) async {
     for (final PurchaseDetails purchaseDetails in purchaseDetailsList) {
       if (purchaseDetails.status == PurchaseStatus.pending) {
         isProcessing.value = true;
       } else {
-        if (purchaseDetails.status == PurchaseStatus.purchased || purchaseDetails.status == PurchaseStatus.restored) {
-          
-          // ۱. اول ثبت وضعیت فعال‌سازی در فایربیس (بسیار حیاتی)
-          await _grantPremiumAccess();
-          
-          // ۲. بعد اعلام اتمام تراکنش به گوگل پلی برای جلوگیری از ریفاند خودکار
+        if (purchaseDetails.status == PurchaseStatus.purchased) {
+          if (_allPremiumProductIds.contains(purchaseDetails.productID)) {
+            await _grantPremiumAccess();
+          }
+          await _consumeAndroidPurchaseIfNeeded(purchaseDetails);
           if (purchaseDetails.pendingCompletePurchase) {
             await _inAppPurchase.completePurchase(purchaseDetails);
           }
           isProcessing.value = false;
-          
+        } else if (purchaseDetails.status == PurchaseStatus.restored) {
+          // restore فقط برای آزاد کردن مالکیت؛ اعتبار دوباره نمی‌دهیم
+          await _consumeAndroidPurchaseIfNeeded(purchaseDetails);
+          if (purchaseDetails.pendingCompletePurchase) {
+            await _inAppPurchase.completePurchase(purchaseDetails);
+          }
+          isProcessing.value = false;
         } else if (purchaseDetails.status == PurchaseStatus.error) {
           isProcessing.value = false;
-          _handleError(purchaseDetails.error?.message ?? translate('iap_failed', currentAppLanguage()));
+          final msg = purchaseDetails.error?.message ?? translate('iap_failed', currentAppLanguage());
+          if (_isAlreadyOwnedError(msg)) {
+            await _consumeAllOwnedAndroidPremiums();
+            _handleError(
+              currentAppLanguage() == 'fa'
+                  ? 'خرید قبلی در حساب استور باقی مانده بود و مصرف شد. دوباره «تمدید ۶ ماهه» را بزنید. اگر باز هم خطا داد، در کنسول محصول $premiumProductId را Consumable کنید.'
+                  : 'Previous store ownership was consumed. Tap Extend again. If it fails, mark $premiumProductId as Consumable in the store console.',
+            );
+          } else {
+            _handleError(msg);
+          }
         } else if (purchaseDetails.status == PurchaseStatus.canceled) {
           isProcessing.value = false;
           _handleError(translate('iap_cancelled', currentAppLanguage()));
@@ -121,14 +127,75 @@ class PurchaseManager {
     }
   }
 
-  // ثبت وضعیت فعال‌سازی و شناسه دستگاه در فایربیس
+  bool _isAlreadyOwnedError(String message) {
+    final m = message.toLowerCase();
+    return m.contains('already own') ||
+        m.contains('item already owned') ||
+        m.contains('already_owned') ||
+        m.contains('item_already_owned');
+  }
+
+  Future<void> _consumeAndroidPurchaseIfNeeded(PurchaseDetails purchase) async {
+    if (!Platform.isAndroid) return;
+    if (!_allPremiumProductIds.contains(purchase.productID)) return;
+    try {
+      final androidAddition =
+          _inAppPurchase.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+      final result = await androidAddition.consumePurchase(purchase);
+      debugPrint(
+        'Android consume ${purchase.productID}: ${result.responseCode} ${result.debugMessage}',
+      );
+    } catch (e) {
+      debugPrint('Android consume failed: $e');
+    }
+  }
+
+  Future<void> _consumeAllOwnedAndroidPremiums() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final androidAddition =
+          _inAppPurchase.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+      final past = await androidAddition.queryPastPurchases();
+      for (final purchase in past.pastPurchases) {
+        if (!_allPremiumProductIds.contains(purchase.productID)) continue;
+        try {
+          await androidAddition.consumePurchase(purchase);
+          if (purchase.pendingCompletePurchase) {
+            await _inAppPurchase.completePurchase(purchase);
+          }
+          debugPrint('Consumed owned premium: ${purchase.productID}');
+        } catch (e) {
+          debugPrint('Consume owned premium failed: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('queryPastPurchases failed: $e');
+    }
+  }
+
   Future<void> _grantPremiumAccess() async {
+    try {
+      await AppTimelineManager().savePremiumPurchaseToServer();
+    } catch (e) {
+      print("Timeline premium save error: $e");
+    }
+
+    var box = Hive.box('settingsBox');
+    await box.put('isPremium', true);
+    if (AppTimelineManager().premiumPurchaseDate != null) {
+      await box.put(
+        'premiumPurchaseDate',
+        AppTimelineManager().premiumPurchaseDate!.toIso8601String(),
+      );
+    }
+
     String? deviceId = await _getDeviceId();
     if (deviceId != null) {
       try {
         await FirebaseFirestore.instance.collection('premium_users').doc(deviceId).set({
           'is_premium': true,
           'purchase_date': DateTime.now().toIso8601String(),
+          'product_id': premiumProductId,
           'platform': Platform.isAndroid ? 'android' : 'ios',
         }, SetOptions(merge: true));
       } catch (e) {
@@ -156,7 +223,7 @@ class PurchaseManager {
     }
   }
 
-  /// شروع فرآیند خرید محصول بر اساس منطق ایمن محصول جدید
+  /// خرید ۶ماهه تکراری (۲، ۳، …) — روی اندروید قبل از خرید، مالکیت قبلی consume می‌شود
   Future<void> buyPremium() async {
     isProcessing.value = true;
     final bool available = await _inAppPurchase.isAvailable();
@@ -166,8 +233,11 @@ class PurchaseManager {
       return;
     }
 
-    final Set<String> kIds = <String>{premiumProductId};
-    final ProductDetailsResponse response = await _inAppPurchase.queryProductDetails(kIds);
+    // بدون این، خرید قبلیِ consume‌نشده → You already own this item
+    await _consumeAllOwnedAndroidPremiums();
+
+    final ProductDetailsResponse response =
+        await _inAppPurchase.queryProductDetails({premiumProductId});
 
     if (response.productDetails.isEmpty) {
       isProcessing.value = false;
@@ -175,8 +245,45 @@ class PurchaseManager {
       return;
     }
 
-    final PurchaseParam purchaseParam = PurchaseParam(productDetails: response.productDetails.first);
-    await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+    final PurchaseParam purchaseParam =
+        PurchaseParam(productDetails: response.productDetails.first);
+
+    try {
+      final bool started = await _inAppPurchase.buyConsumable(
+        purchaseParam: purchaseParam,
+        autoConsume: true,
+      );
+      if (!started) {
+        isProcessing.value = false;
+        _handleError(
+          currentAppLanguage() == 'fa'
+              ? 'شروع خرید ناموفق بود. دوباره تلاش کنید.'
+              : 'Could not start purchase. Try again.',
+        );
+      }
+    } catch (e) {
+      final msg = e.toString();
+      if (_isAlreadyOwnedError(msg)) {
+        await _consumeAllOwnedAndroidPremiums();
+        try {
+          await _inAppPurchase.buyConsumable(
+            purchaseParam: purchaseParam,
+            autoConsume: true,
+          );
+          return;
+        } catch (e2) {
+          isProcessing.value = false;
+          _handleError(
+            currentAppLanguage() == 'fa'
+                ? 'استور هنوز آیتم را متعلق به شما می‌داند. در Play Console محصول $premiumProductId را Consumable کنید (نه Non-consumable). جزئیات: $e2'
+                : 'Store still reports ownership. Mark $premiumProductId as Consumable in Play Console. ($e2)',
+          );
+          return;
+        }
+      }
+      isProcessing.value = false;
+      _handleError(msg);
+    }
   }
 
   /// بازیابی خریدهای قبلی کاربر
@@ -299,9 +406,17 @@ class AppAdManager {
     }
   }
 
+  bool get shouldShowBannerAd => enableBannerAd;
+
+  bool get shouldShowInterstitialAd =>
+      enableInterstitialAd && !PurchaseManager().isPremiumUser.value;
+
+  bool get shouldShowRewardedAd =>
+      enableRewardedAd && !PurchaseManager().isPremiumUser.value;
+
   // ۱. بارگذاری تبلیغ بین‌صفحه‌ای (فاز ۲ به بعد)
   void loadInterstitialAd() {
-    if (!enableInterstitialAd || PurchaseManager().isPremiumUser.value) return;
+    if (!shouldShowInterstitialAd) return;
     
     InterstitialAd.load(
       adUnitId: _interstitialUnitId,
@@ -321,7 +436,7 @@ class AppAdManager {
 
   // ۲. بارگذاری ویدیو جایزه‌ای ناوبری (فاز ۳)
   void loadRewardedAd() {
-    if (!enableRewardedAd || PurchaseManager().isPremiumUser.value) return;
+    if (!shouldShowRewardedAd) return;
 
     RewardedAd.load(
       adUnitId: _rewardedUnitId,
@@ -339,10 +454,13 @@ class AppAdManager {
     );
   }
 
-  // نمایش تبلیغ بین‌صفحه‌ای هنگام سوئیچ تب‌ها
+  // نمایش تبلیغ بین‌صفحه‌ای هنگام سوئیچ تب‌ها (بعد از قطع سرویس هم ادامه دارد)
   void showInterstitialAd(VoidCallback onAdClosed) {
     int tier = AppTimelineManager().currentTier;
-    if (!_isInterstitialLoaded || _interstitialAd == null || tier < 2 || PurchaseManager().isPremiumUser.value) {
+    if (!_isInterstitialLoaded ||
+        _interstitialAd == null ||
+        tier < 2 ||
+        !shouldShowInterstitialAd) {
       onAdClosed();
       loadInterstitialAd();
       return;
@@ -601,24 +719,53 @@ class AppTimelineManager {
     }
   }
 
-  // فراخوانی بعد از خرید موفق ۶ ماهه جهت هماهنگی آنی با سرور و هیو
+  // خرید موفق: ۶ ماه جدید، یا اگر هنوز اعتبار دارد روی همان انباشت می‌شود
   Future<void> savePremiumPurchaseToServer() async {
     String deviceId = await _getDeviceId();
     DateTime now = DateTime.now();
-    
+    const int premiumDuration = 180;
+
+    DateTime newExpiry;
+    if (premiumPurchaseDate != null) {
+      final currentExpiry = isTestingMode
+          ? premiumPurchaseDate!.add(Duration(minutes: premiumDuration))
+          : premiumPurchaseDate!.add(Duration(days: premiumDuration));
+      if (now.isBefore(currentExpiry)) {
+        newExpiry = isTestingMode
+            ? currentExpiry.add(Duration(minutes: premiumDuration))
+            : currentExpiry.add(Duration(days: premiumDuration));
+      } else {
+        newExpiry = isTestingMode
+            ? now.add(Duration(minutes: premiumDuration))
+            : now.add(Duration(days: premiumDuration));
+      }
+    } else {
+      newExpiry = isTestingMode
+          ? now.add(Duration(minutes: premiumDuration))
+          : now.add(Duration(days: premiumDuration));
+    }
+
+    premiumPurchaseDate = isTestingMode
+        ? newExpiry.subtract(Duration(minutes: premiumDuration))
+        : newExpiry.subtract(Duration(days: premiumDuration));
+
     var box = Hive.box('settingsBox');
-    await box.put('premiumPurchaseDate', now.toIso8601String());
-    
-    // خرید جدید فالبک انقضای قبلی را کاملاً پاک می‌کند
+    await box.put('premiumPurchaseDate', premiumPurchaseDate!.toIso8601String());
+    await box.put('isPremium', true);
+
     postPremiumFallbackDate = null;
     await box.delete('postPremiumFallbackDate');
 
-    await FirebaseFirestore.instance.collection('tanken_users_timeline').doc(deviceId).update({
-      'premiumPurchaseDate': Timestamp.fromDate(now),
-      'postPremiumFallbackDate': null,
-    });
-    
-    await initializeAndSync();
+    try {
+      await FirebaseFirestore.instance.collection('tanken_users_timeline').doc(deviceId).set({
+        'premiumPurchaseDate': Timestamp.fromDate(premiumPurchaseDate!),
+        'postPremiumFallbackDate': null,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      print("⚠️ Cloud sync for premium purchase failed: $e");
+    }
+
+    calculateCurrentStatus();
   }
 
   // گتر همگام برای محاسبه دقیق روزهای باقی‌مانده از کل بازه ۹۰ روزه
@@ -662,208 +809,3 @@ class AppTimelineManager {
     calculateCurrentStatus();
   }
 }
-// class AppTimelineManager {
-//   static final AppTimelineManager _instance = AppTimelineManager._internal();
-//   factory AppTimelineManager() => _instance;
-//   AppTimelineManager._internal();
-
-//   // 🎯 فلگ تست: اگر true باشد، هر ۱ دقیقه معادل ۱ روز فرض می‌شود تا سریع تست کنید
-//   bool isTestingMode = false; 
-
-//   DateTime? firstInstallDate;
-//   DateTime? premiumPurchaseDate;
-//   int daysUsed = 0;
-//   int currentTier = 0; 
-//   // تعداد روزهای کل دوره رایگان (مثلاً ۷ روز)
-//   final int totalFreeDays = 90;
-
-//   /*
-//    فازهای زمانی تانکن (Tiers):
-//    فاز 0: روز ۰ تا ۳ -> هیچ تبلیغی نیست.
-//    فاز 1: روز ۳ تا ۳۰ -> فقط بنر کوچک پایین صفحه‌ها.
-//    فاز 2: روز ۳۰ تا ۶۰ -> بنر + تبلیغ بین‌صفحه‌ای هنگام تعویض تب‌ها (Parking, Diesel, E5, E10, Service).
-//    فاز 3: روز ۶۰ تا ۹۰ -> بنر + بین‌صفحه‌ای + ویدیو کامل هنگام کلیک روی ناوبری مپ.
-//    فاز 4: روز ۹۰ به بعد -> قفل شدن کلیک پمپ بنزین‌ها و هدایت مستقیم به صفحه خرید پرمیوم.
-//   */
-
-//    // متدی که توسط PurchaseManager زمان انقضای لایسنس صدا زده می‌شود
-//  Future<void> setPostPremiumFallbackDate(DateTime expirationDate) async {
-//   var box = Hive.box('settingsBox');
-//   _postPremiumFallbackDate = expirationDate; // خط اصلاح شده
-//   await box.put('postPremiumFallbackDate', expirationDate.toIso8601String());
-// }
-
-
-//   Future<void> initializeAndSync() async {
-//   String deviceId = "unknown_tanken_device";
-//   final deviceInfo = DeviceInfoPlugin();
-
-//   // ۱. گرفتن ایمن شناسه دستگاه (بدون تغییر)
-//   try {
-//     if (Platform.isAndroid) {
-//       var androidInfo = await deviceInfo.androidInfo;
-//       deviceId = androidInfo.id;
-//     } else if (Platform.isIOS) {
-//       var iosInfo = await deviceInfo.iosInfo;
-//       deviceId = iosInfo.identifierForVendor ?? "unknown_ios";
-//     }
-//   } catch (e) {
-//     print("⚠️ Device Info retrieval failed: $e");
-//     deviceId = "backup_tanken_id";
-//   }
-
-//   // ۲. چتر امنیتی اصلی برای ارتباط با فایرستور (کلود)
-//   try {
-//     final docRef = FirebaseFirestore.instance.collection('tanken_users_timeline').doc(deviceId);
-//     final docSnap = await docRef.get();
-
-//     if (docSnap.exists) {
-//       final data = docSnap.data()!;
-//       firstInstallDate = (data['firstInstallDate'] as Timestamp).toDate();
-//       if (data['premiumPurchaseDate'] != null) {
-//         premiumPurchaseDate = (data['premiumPurchaseDate'] as Timestamp).toDate();
-//       }
-//     } else {
-//       // کاربر جدید است
-//       firstInstallDate = DateTime.now();
-//       premiumPurchaseDate = null;
-//       await docRef.set({
-//         'firstInstallDate': Timestamp.fromDate(firstInstallDate!),
-//         'premiumPurchaseDate': null,
-//       });
-//     }
-//   } catch (e) {
-//     // ۳. مدیریت خطا در صورت آفلاین بودن یا عدم وجود دیتابیس
-//     print("⚠️ Firestore sync failed or unavailable: $e");
-    
-//     // حالت جایگزین (Fallback): اگر فایرستور خطا داد، اجازه نمی‌دهیم متغیرها null بمانند
-//     // تا متد محاسبه وضعیت (calculateCurrentStatus) با خطا مواجه نشود.
-//     if (firstInstallDate == null) {
-//       firstInstallDate = DateTime.now(); 
-//       // نکته اختیاری: اگر تمایل داشتید، اینجا می‌توانید تاریخ را از حافظه محلی (مثل Hive) بخوانید.
-//     }
-//   }
-
-//   // ۴. این متد حیاتی تحت هر شرایطی (چه آنلاین با موفقیت، چه آفلاین با خطا) باید اجرا شود.
-//   calculateCurrentStatus();
-// }
-
-//   void calculateCurrentStatus() {
-//     if (firstInstallDate == null) return;
-//     DateTime now = DateTime.now();
-
-//     // بررسی انقضای پرمیوم ۶ ماهه (۱۸۰ روزه) و ریست شدن لایف‌سایکل
-//     if (premiumPurchaseDate != null) {
-//       int diffPremium = isTestingMode 
-//           ? now.difference(premiumPurchaseDate!).inMinutes 
-//           : now.difference(premiumPurchaseDate!).inDays;
-          
-//       int premiumDuration = 180; // ۱۸۰ روز (یا ۱۸۰ دقیقه در حالت تست)
-
-//       if (diffPremium < premiumDuration) {
-//         // کاربر هنوز پرمیوم معتبر دارد
-//         PurchaseManager().isPremiumUser.value = true;
-//         daysUsed = 0;
-//         currentTier = 0;
-//         return;
-//       } else {
-//         // ۶ ماه تمام شد! پرمیوم لغو و بر اساس تاریخ انقضا، سیکل از نو ریست می‌شود
-//         PurchaseManager().isPremiumUser.value = false;
-//         DateTime expirationDate = premiumPurchaseDate!.add(
-//           Duration(minutes: isTestingMode ? premiumDuration : 0, days: isTestingMode ? 0 : premiumDuration)
-//         );
-//         daysUsed = isTestingMode ? now.difference(expirationDate).inMinutes : now.difference(expirationDate).inDays;
-//       }
-//     } else {
-//       // پرمیوم نخریده، محاسبه زمان بر اساس اولین نصب
-//       PurchaseManager().isPremiumUser.value = false;
-//       daysUsed = isTestingMode ? now.difference(firstInstallDate!).inMinutes : now.difference(firstInstallDate!).inDays;
-//     }
-
-//     // دسته‌بندی کاربر بر اساس روزهای سپری شده
-//     if (daysUsed < 3) {
-//       currentTier = 0;
-//     } else if (daysUsed >= 3 && daysUsed < 30) {
-//       currentTier = 1;
-//     } else if (daysUsed >= 30 && daysUsed < 60) {
-//       currentTier = 2;
-//     } else if (daysUsed >= 60 && daysUsed < 90) {
-//       currentTier = 3;
-//     } else {
-//       currentTier = 4; // روز ۹۰ به بعد: قفل کامل کلیک روی پمپ‌ها
-//     }
-//   }
-
-//   // فراخوانی بعد از خرید موفق ۶ ماهه جهت هماهنگی با کلود
-//   Future<void> savePremiumPurchaseToServer() async {
-//     String deviceId = "unknown_tanken_device";
-//     final deviceInfo = DeviceInfoPlugin();
-//     if (Platform.isAndroid) {
-//       var info = await deviceInfo.androidInfo;
-//       deviceId = info.id;
-//     }
-//     await FirebaseFirestore.instance.collection('tanken_users_timeline').doc(deviceId).update({
-//       'premiumPurchaseDate': Timestamp.fromDate(DateTime.now()),
-//     });
-//     await initializeAndSync();
-//   }
-
-//   // گتر برای محاسبه روزهای باقی‌مانده
-//   int get remainingFreeDays {
-//     if (firstInstallDate == null) return 0;
-    
-//     // محاسبه اختلاف روزها بین الان و زمان اولین نصب
-//     final passed = isTestingMode 
-//         ? DateTime.now().difference(firstInstallDate!).inMinutes
-//         : DateTime.now().difference(firstInstallDate!).inDays;
-         
-//     final remaining = totalFreeDays - passed;
-    
-//     return remaining < 0 ? 0 : remaining;
-//   }
-
-//   // گتر برای بررسی اینکه آیا دوره رایگان تمام شده است یا خیر
-//   bool get isFreeTierExpired {
-//     if (firstInstallDate == null) return false;
-//     final passed = isTestingMode 
-//         ? DateTime.now().difference(firstInstallDate!).inMinutes
-//         : DateTime.now().difference(firstInstallDate!).inDays;
-        
-//     return passed >= totalFreeDays;
-//   }
-
-//   // ⏱️ متد تست برای ریست کردن کامل تایم‌لاین (مخصوص زمان توسعه)
-//   Future<void> resetTimelineForTesting() async {
-//     if (!isTestingMode) return; // چتر امنیتی: اگر مود تست غیرفعال باشد هیچ کاری نمی‌کند
-
-//     firstInstallDate = DateTime.now();
-//     premiumPurchaseDate = null;
-//     daysUsed = 0;
-//     currentTier = 0;
-
-//     // به‌روزرسانی آنی فایرستور تا سرور هم ریست شود
-//     try {
-//       String deviceId = "unknown_tanken_device";
-//       final deviceInfo = DeviceInfoPlugin();
-//       if (Platform.isAndroid) {
-//         var androidInfo = await deviceInfo.androidInfo;
-//         deviceId = androidInfo.id;
-//       } else if (Platform.isIOS) {
-//         var iosInfo = await deviceInfo.iosInfo;
-//         deviceId = iosInfo.identifierForVendor ?? "unknown_ios";
-//       }
-
-//       await FirebaseFirestore.instance.collection('tanken_users_timeline').doc(deviceId).set({
-//         'firstInstallDate': Timestamp.fromDate(firstInstallDate!),
-//         'premiumPurchaseDate': null,
-//       });
-//       print("✅ [Test] Firestore timeline reset successfully.");
-//     } catch (e) {
-//       print("⚠️ [Test] Firestore reset failed: $e");
-//     }
-
-//     // محاسبه مجدد وضعیت تایرها و روزها تا UI فوراً تغییر کند
-//     calculateCurrentStatus();
-//   }
-
-// }

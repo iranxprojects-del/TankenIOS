@@ -16,6 +16,12 @@ import 'package:workmanager/workmanager.dart'; // برای رفع ارور Workm
 //import 'package:latlong/latlong.dart' as latLng;
 import 'translations.dart';
 import 'german_cities.dart';
+import 'fuel_countries.dart';
+import 'fuel_price_service.dart';
+import 'community_fuel_service.dart';
+import 'official_fuel_prices.dart';
+import 'fuel_deals_service.dart';
+import 'fuel_deals_sheet.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'oil_analysis_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -202,7 +208,7 @@ class FuelDashboard extends StatefulWidget {
   State<FuelDashboard> createState() => _FuelDashboardState();
 }
 
-class _FuelDashboardState extends State<FuelDashboard> {
+class _FuelDashboardState extends State<FuelDashboard> with AutomaticKeepAliveClientMixin {
   String selectedFuel = 'diesel'; // پیش‌فرض
   List stations = [];
   String? selectedStationId;
@@ -229,6 +235,8 @@ class _FuelDashboardState extends State<FuelDashboard> {
   List _mapStations = [];
   double _mapCenterLat = 52.5200;
   double _mapCenterLng = 13.4050;
+  /// Set when user searches a known city (e.g. Toronto) so bbox edge cases don't flip country.
+  String? _lockedCountryCode;
   Timer? _mapMoveDebounce;
   bool _isLoadingMapStations = false;
   double? _pendingMapLoadLat;
@@ -238,6 +246,10 @@ class _FuelDashboardState extends State<FuelDashboard> {
   bool enableEmailReminders = false;
   TextEditingController _emailController = TextEditingController();
   bool _isServiceUnlockedForSession = false;
+  bool _isLoadingAd = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   bool _isAdLoaded = false;
   final MapController _mapController = MapController();
@@ -275,7 +287,11 @@ class _FuelDashboardState extends State<FuelDashboard> {
   bool _isBannerLoading = false;
 
   void _loadBannerAd() {
-    if (PurchaseManager().isPremiumUser.value) return;
+    // پرمیوم: فقط بنر. غیرپرمیوم از tier 1 به بعد.
+    final isPremium = PurchaseManager().isPremiumUser.value;
+    final tier = AppTimelineManager().currentTier;
+    if (!AppAdManager().shouldShowBannerAd) return;
+    if (!isPremium && tier < 1) return;
     if (_isAdLoaded) return;
 
     AppAdManager().ensureSdkReady().then((_) {
@@ -478,7 +494,7 @@ void _showTankenPremiumDialog(BuildContext context) {
   final timelineManager = AppTimelineManager();
   final purchaseManager = PurchaseManager();
 
-  // اگر کاربر قبلاً پرمیوم را خریده باشد، این بنر کلاً مخفی می‌شود
+  // در دوره پرمیوم این نوار وضعیت را نشان نده
   if (purchaseManager.isPremiumUser.value) {
     return const SizedBox.shrink();
   }
@@ -538,7 +554,7 @@ void _showTankenPremiumDialog(BuildContext context) {
   }
 
   // ۲. تنظیم متن دکمه خرید بر اساس زبان
-  String buttonText = translate('remove_ads_premium', currentLang);
+  String buttonText = translate('extend_6_months', currentLang);
 
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -707,8 +723,36 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
     }
   }
 
-  Future<void> fetchPrices({double? lat, double? lng}) async {
+  String _countryCodeForCoords(double lat, double lng) {
+    final locked = _lockedCountryCode?.trim().toLowerCase();
+    if (locked != null && locked.isNotEmpty && countryByCode(locked) != null) {
+      final distKm = Geolocator.distanceBetween(
+            lat,
+            lng,
+            userLat,
+            userLng,
+          ) /
+          1000.0;
+      if (distKm < 180) return locked;
+    }
+    return detectCountryCodeFromLatLng(lat, lng) ?? 'de';
+  }
 
+  void _lockCountryFromPlace(Map<String, String> place) {
+    final raw = place['country_code']?.trim().toLowerCase();
+    if (raw == null || raw.isEmpty) return;
+    final code = raw == 'gb' ? 'uk' : raw;
+    if (countryByCode(code) != null) {
+      _lockedCountryCode = code;
+    }
+  }
+
+  String _ocmCountryCodeFor(double lat, double lng) {
+    final code = _countryCodeForCoords(lat, lng).toUpperCase();
+    return code == 'UK' ? 'GB' : code;
+  }
+
+  Future<void> fetchPrices({double? lat, double? lng}) async {
     setState(() => isLoading = true);
 
     try {
@@ -734,32 +778,36 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
       });
       _saveLastLocation(searchLat, searchLng);
 
-      const apiKey = "ece7e50d-72fe-4e51-a996-555e56ca910c";
-      final listRadius = _fuelSearchRadiusKm > 25.0 ? 25.0 : _fuelSearchRadiusKm;
-      final url =
-          "https://creativecommons.tankerkoenig.de/json/list.php?lat=$searchLat&lng=$searchLng&rad=$listRadius&sort=price&type=$selectedFuel&apikey=$apiKey";
+      final countryCode = _countryCodeForCoords(searchLat, searchLng);
+      final fuelForCountry =
+          normalizeFuelTypeForCountry(selectedFuel, countryCode);
+      if (fuelForCountry != selectedFuel) {
+        selectedFuel = fuelForCountry;
+        Hive.box('settingsBox').put('lastSelectedFuel', fuelForCountry);
+      }
+      final list = await FuelPriceService.fetchNearby(
+        countryCode: countryCode,
+        lat: searchLat,
+        lng: searchLng,
+        radiusKm: _fuelSearchRadiusKm,
+        fuelType: fuelForCountry,
+      );
 
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['ok'] == true) {
-          setState(() {
-            stations = (data['stations'] as List).where((s) {
-              return s['price'] != null && s['price'] > 0;
-            }).toList();
-
-            stations.sort((a, b) => a['price'].compareTo(b['price']));
-            _restoreSelectedStationAtTop();
-            _syncMapStationsFromList(lat: searchLat, lng: searchLng);
-            isLoading = false;
-          });
-          _fitMapToSearchResults();
-        } else {
-          debugPrint('Tankerkoenig error: ${data['message']}');
-          setState(() => isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        stations = list;
+        stations.sort((a, b) =>
+            ((a['price'] as num?) ?? 0).compareTo((b['price'] as num?) ?? 0));
+        _restoreSelectedStationAtTop();
+        _syncMapStationsFromList(lat: searchLat, lng: searchLng);
+        isLoading = false;
+      });
+      _fitMapToSearchResults();
+      if (countryCode.toLowerCase() == 'de' && list.isNotEmpty) {
+        final cheapest = (list.first['price'] as num?)?.toDouble();
+        if (cheapest != null && cheapest > 0) {
+          FuelDealsService.recordGermanyPriceSample(cheapest);
         }
-      } else {
-        setState(() => isLoading = false);
       }
     } catch (e) {
       setState(() => isLoading = false);
@@ -816,6 +864,43 @@ Future<void> _saveSearchHistory(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return [];
 
+    final preferCc = (_lockedCountryCode ??
+            _countryCodeForCoords(_mapCenterLat, _mapCenterLng))
+        .toLowerCase();
+
+    // شهرهای شناخته‌شده همه کشورها (San Jose / San Francisco / Paris / …)
+    // قبل از جستجوی آلمانی — وگرنه Photon/Nominatim آلمان نتیجه غلط می‌دهد.
+    final international = matchAllCountriesCities(
+      trimmed,
+      limit: 8,
+      preferCountryCode: preferCc,
+    );
+    if (international.isNotEmpty && hasStrongCityMatch(trimmed)) {
+      return international;
+    }
+    final q = foldQuery(trimmed);
+    if (international.isNotEmpty && q.length >= 3) {
+      final strong = international.where((p) {
+        final city = foldQuery((p['display_name'] ?? '').split(',').first);
+        return city == q || city.startsWith(q);
+      }).toList();
+      if (strong.isNotEmpty) return strong;
+    }
+
+    final country = countryByCode(preferCc);
+    final nominatimCode = country?.nominatimCode ?? preferCc;
+
+    // اگر کشور فعلی آلمان نیست، اول همان کشور را در Nominatim جستجو کن
+    if (preferCc != 'de') {
+      final remote = await _searchNominatim(
+        trimmed,
+        countryCodes: nominatimCode,
+      );
+      if (remote.isNotEmpty) return remote;
+      if (international.isNotEmpty) return international;
+      return [];
+    }
+
     final local = matchGermanCities(trimmed);
     if (local.isNotEmpty) {
       return local.map((c) => c.toPlace()).toList();
@@ -827,9 +912,10 @@ Future<void> _saveSearchHistory(String query) async {
       if (photon.isNotEmpty) return photon;
     }
     for (final variant in variants) {
-      final nominatim = await _searchNominatim(variant);
+      final nominatim = await _searchNominatim(variant, countryCodes: 'de');
       if (nominatim.isNotEmpty) return nominatim;
     }
+    if (international.isNotEmpty) return international;
     return [];
   }
 
@@ -894,15 +980,20 @@ Future<void> _saveSearchHistory(String query) async {
     }
   }
 
-  Future<List<Map<String, String>>> _searchNominatim(String query) async {
+  Future<List<Map<String, String>>> _searchNominatim(
+    String query, {
+    String countryCodes = 'de',
+  }) async {
     try {
+      final codes = countryCodes.trim().toLowerCase();
+      final acceptLang = codes == 'de' ? 'de,en' : 'en';
       final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
         'q': query,
         'format': 'json',
         'limit': '8',
-        'countrycodes': 'de',
+        'countrycodes': codes == 'uk' ? 'gb' : codes,
         'addressdetails': '1',
-        'accept-language': 'de,en',
+        'accept-language': acceptLang,
       });
       final response = await http
           .get(
@@ -910,22 +1001,31 @@ Future<void> _saveSearchHistory(String query) async {
             headers: {
               'User-Agent': 'TankenDE/1.0 (support.smartcarmanager@gmail.com)',
               'Accept': 'application/json',
-              'Accept-Language': 'de,en',
+              'Accept-Language': acceptLang,
             },
           )
           .timeout(const Duration(seconds: 12));
       if (response.statusCode != 200) return [];
       final List<dynamic> data = json.decode(response.body);
       return data.map<Map<String, String>>((dynamic item) {
+        final addr = item['address'];
+        String? cc;
+        if (addr is Map) {
+          cc = addr['country_code']?.toString().toLowerCase();
+          if (cc == 'gb') cc = 'uk';
+        }
         return <String, String>{
           'display_name': item['display_name'] ?? query,
           'lat': item['lat']?.toString() ?? '',
           'lon': item['lon']?.toString() ?? '',
+          if (cc != null) 'country_code': cc,
         };
       }).where((place) {
         final lat = double.tryParse(place['lat'] ?? '');
         final lng = double.tryParse(place['lon'] ?? '');
-        return lat != null && lng != null && _coordsInGermany(lat, lng);
+        if (lat == null || lng == null) return false;
+        if (codes == 'de') return _coordsInGermany(lat, lng);
+        return true;
       }).toList();
     } catch (e) {
       debugPrint('Nominatim search error: $e');
@@ -942,12 +1042,33 @@ Future<void> _saveSearchHistory(String query) async {
       return;
     }
 
-    final local = matchGermanCities(trimmed).map((c) => c.toPlace()).toList();
+    final preferCc = (_lockedCountryCode ??
+            _countryCodeForCoords(_mapCenterLat, _mapCenterLng))
+        .toLowerCase();
+    final international = matchAllCountriesCities(
+      trimmed,
+      limit: 8,
+      preferCountryCode: preferCc,
+    );
+    final deLocal = preferCc == 'de'
+        ? matchGermanCities(trimmed).map((c) => c.toPlace()).toList()
+        : <Map<String, String>>[];
+    final local = [...international, ...deLocal];
     if (local.isNotEmpty && mounted) {
       setState(() {
-        placeSuggestions = local;
+        placeSuggestions = local.take(8).toList();
       });
     }
+
+    // اگر شهر شناخته‌شده بین‌المللی داریم، دیگر Photon/Nominatim آلمان را صدا نزن
+    // (مثلاً "paris" / "LA" / "San Jose" / "San Francisco").
+    if (hasStrongCityMatch(trimmed)) return;
+    final q = foldQuery(trimmed);
+    final hasStrongIntl = international.any((p) {
+      final city = foldQuery((p['display_name'] ?? '').split(',').first);
+      return city == q || (q.length >= 3 && city.startsWith(q));
+    });
+    if (hasStrongIntl) return;
 
     try {
       final suggestions = await _searchPlace(trimmed);
@@ -1029,11 +1150,15 @@ Future<void> _performSearch() async {
     }
 
     // ۱. آپدیت مختصات در State برای استفاده در تب‌های مختلف
+    _lockCountryFromPlace(place);
     setState(() {
       userLat = lat;
       userLng = lng;
     });
     _saveLastLocation(lat, lng);
+    // Move map immediately so user sees the city while pumps load.
+    _moveMapCamera(lat, lng);
+    _activateFullMapSearchView();
 
     // ۳. به‌روزرسانی فیلد متن و ذخیره در تاریخچه (بدون تکراری)
     final displayName = place['display_name'] ?? query;
@@ -1042,8 +1167,6 @@ Future<void> _performSearch() async {
 
     // ۴. دریافت لیست ایستگاه‌های جدید
     await _searchStations(lat, lng, query);
-    _moveMapCamera(lat, lng);
-    _activateFullMapSearchView();
     
   } catch (e) {
     print('Search Error: $e');
@@ -1087,14 +1210,15 @@ Future<void> _selectPlaceSuggestion(Map<String, String> suggestion) async {
     userLng = lng;
     _searchController.text = displayName;
   });
+  _lockCountryFromPlace(suggestion);
   _searchFocusNode.unfocus();
+  _moveMapCamera(lat, lng);
+  _activateFullMapSearchView();
 
   try {
     await _saveLastLocation(lat, lng);
     await _saveSearchHistory(displayName);
     await _searchStations(lat, lng, displayName);
-    _moveMapCamera(lat, lng);
-    _activateFullMapSearchView();
   } catch (e) {
     debugPrint('Suggestion search error: $e');
     if (mounted) {
@@ -1302,25 +1426,20 @@ Future<void> _searchNearby() async {
   }
 
   Future<List> _fetchFuelAround(double lat, double lng, double radiusKm) async {
-    const apiKey = "ece7e50d-72fe-4e51-a996-555e56ca910c";
-    final rad = radiusKm > 25.0 ? 25.0 : radiusKm;
-    final url =
-        "https://creativecommons.tankerkoenig.de/json/list.php?lat=$lat&lng=$lng&rad=$rad&sort=price&type=$selectedFuel&apikey=$apiKey";
-    final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) return [];
-    final data = json.decode(response.body);
-    if (data['ok'] != true) return [];
-    final list = (data['stations'] as List).where((s) {
-      return s['price'] != null && s['price'] > 0;
-    }).toList();
-    list.sort((a, b) => a['price'].compareTo(b['price']));
-    return list;
+    return FuelPriceService.fetchNearby(
+      countryCode: _countryCodeForCoords(lat, lng),
+      lat: lat,
+      lng: lng,
+      radiusKm: radiusKm,
+      fuelType: selectedFuel,
+    );
   }
 
   Future<List> _fetchEvAround(double lat, double lng, double radiusKm) async {
     const apiKey = "1496f02a-4cf6-45fd-90e9-83bb67a3cdab";
+    final cc = _ocmCountryCodeFor(lat, lng);
     final url =
-        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&latitude=$lat&longitude=$lng&distance=$radiusKm&distanceunit=KM&maxresults=50&compact=true&verbose=false&key=$apiKey";
+        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=$cc&latitude=$lat&longitude=$lng&distance=$radiusKm&distanceunit=KM&maxresults=50&compact=true&verbose=false&key=$apiKey";
     final response = await http.get(
       Uri.parse(url),
       headers: {
@@ -1368,7 +1487,24 @@ Future<void> _searchNearby() async {
     if (selectedFuel == 'ev' || price.contains('⚡') || price.contains('kW')) {
       return price;
     }
-    return '€$price';
+    final cc = _countryCodeForCoords(
+      (s['lat'] as num?)?.toDouble() ?? _mapCenterLat,
+      (s['lng'] as num?)?.toDouble() ?? _mapCenterLng,
+    );
+    return formatFuelPrice(s['price'], countryCode: cc);
+  }
+
+  String get _activeFuelCountryCode =>
+      _countryCodeForCoords(_mapCenterLat, _mapCenterLng);
+
+  String get _activeCurrencyCode =>
+      currencyLabelForCountry(_activeFuelCountryCode);
+
+  String _formatStationPrice(dynamic raw, {double? lat, double? lng}) {
+    final cc = (lat != null && lng != null)
+        ? _countryCodeForCoords(lat, lng)
+        : _activeFuelCountryCode;
+    return formatFuelPrice(raw, countryCode: cc);
   }
 
   double? _overpassLat(dynamic element) {
@@ -1510,28 +1646,51 @@ out center;
   }
 
   Future<void> _openMap(double lat, double lng) async {
-    int tier = AppTimelineManager().currentTier;
-    bool isPremium = PurchaseManager().isPremiumUser.value;
+  int tier = AppTimelineManager().currentTier;
+  bool isPremium = PurchaseManager().isPremiumUser.value;
 
-    // 🔒 فاز ۴ (روز ۹۰ به بعد): قفل کامل پمپ‌بنزین‌ها و هدایت به خرید
-    if (!isPremium && tier >= 4) {
-      _showTankenPremiumDialog(context);
-      return;
-    }
-
-    final allowed = await _ensureNavigationConsentAndOsPermission();
-    if (!allowed || !mounted) return;
-
-    // 📺 روز ۳۰ تا ۸۹: ویدیو rewarded قبل از باز شدن نقشه
-    if (!isPremium && (tier == 2 || tier == 3)) {
-      AppAdManager().showNavigationRewardedAd(() async {
-        await _openNavigation(destLat: lat, destLng: lng);
-      });
-      return;
-    }
-
-    await _openNavigation(destLat: lat, destLng: lng);
+  if (!isPremium && tier >= 4) {
+    _showTankenPremiumDialog(context);
+    return;
   }
+
+  final allowed = await _ensureNavigationConsentAndOsPermission();
+  if (!allowed || !mounted) return;
+
+  if (!isPremium && (tier == 2 || tier == 3)) {
+    AppAdManager().showNavigationRewardedAd(() async {
+      if (!mounted) return; // چک کردن زنده بودن ویجت پس از بستن تبلیغ
+      await _openNavigation(destLat: lat, destLng: lng);
+    });
+    return;
+  }
+
+  await _openNavigation(destLat: lat, destLng: lng);
+}
+
+  // Future<void> _openMap(double lat, double lng) async {
+  //   int tier = AppTimelineManager().currentTier;
+  //   bool isPremium = PurchaseManager().isPremiumUser.value;
+
+  //   // 🔒 فاز ۴ (روز ۹۰ به بعد): قفل کامل پمپ‌بنزین‌ها و هدایت به خرید
+  //   if (!isPremium && tier >= 4) {
+  //     _showTankenPremiumDialog(context);
+  //     return;
+  //   }
+
+  //   final allowed = await _ensureNavigationConsentAndOsPermission();
+  //   if (!allowed || !mounted) return;
+
+  //   // 📺 روز ۳۰ تا ۸۹: ویدیو rewarded قبل از باز شدن نقشه
+  //   if (!isPremium && (tier == 2 || tier == 3)) {
+  //     AppAdManager().showNavigationRewardedAd(() async {
+  //       await _openNavigation(destLat: lat, destLng: lng);
+  //     });
+  //     return;
+  //   }
+
+  //   await _openNavigation(destLat: lat, destLng: lng);
+  // }
 
   bool get _hasValidUserLocation => userLat != 0.0 && userLng != 0.0;
 
@@ -1972,11 +2131,39 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _searchStations(userLat, userLng);
-      _fitMapToSearchResults();
+      _bootstrapFirstRunOrResume();
       _loadBannerAd();
       _scheduleDeferredStartupWork();
     });
+  }
+
+  /// First install: type "Berlin" and run search automatically.
+  Future<void> _bootstrapFirstRunOrResume() async {
+    final box = Hive.box('settingsBox');
+    final autoBerlinDone =
+        box.get('autoBerlinSearchDone', defaultValue: false) == true;
+    if (!autoBerlinDone) {
+      await box.put('autoBerlinSearchDone', true);
+      await box.put('countryCode', 'de');
+      await box.put('lastLat', 52.5200);
+      await box.put('lastLng', 13.4050);
+      if (!mounted) return;
+      setState(() {
+        userLat = 52.5200;
+        userLng = 13.4050;
+        _mapCenterLat = 52.5200;
+        _mapCenterLng = 13.4050;
+        _searchController.text = 'Berlin';
+      });
+      try {
+        _mapController.move(ll.LatLng(52.5200, 13.4050), 12);
+      } catch (_) {}
+      await _performSearch();
+      return;
+    }
+    if (!mounted) return;
+    await _searchStations(userLat, userLng);
+    _fitMapToSearchResults();
   }
 
   void _scheduleDeferredStartupWork() {
@@ -2567,10 +2754,9 @@ Future<void> _refreshAllMaintenanceReminders() async {
 
     final String apiKey =
         "1496f02a-4cf6-45fd-90e9-83bb67a3cdab"; // کلیدی که گرفتید
+    final String cc = _ocmCountryCodeFor(searchLat, searchLng);
     final String url =
-        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&latitude=$searchLat&longitude=$searchLng&distance=$_fuelSearchRadiusKm&distanceunit=KM&maxresults=100&compact=true&verbose=false&key=$apiKey";
-    //
-    //"https://api.openchargemap.io/v3/poi/?output=json&countrycode=DE&maxresults=10&compact=true&verbose=false";
+        "https://api.openchargemap.io/v3/poi/?output=json&countrycode=$cc&latitude=$searchLat&longitude=$searchLng&distance=$_fuelSearchRadiusKm&distanceunit=KM&maxresults=100&compact=true&verbose=false&key=$apiKey";
     try {
       final response = await http
           .get(
@@ -2862,37 +3048,75 @@ Future<void> _openGoogleMapsForParkingFallback({
   }
 
   // 📺 روز ۳۰ تا ۸۹: تماشای ویدیو برای آزادسازی موقت تب سرویس
+  // if (!isPremium && (tier == 2 || tier == 3) && !_isServiceUnlockedForSession) {
+  //   return Center(
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(20.0),
+  //       child: Column(
+  //         mainAxisAlignment: MainAxisAlignment.center,
+  //         children: [
+  //           const Icon(Icons.ondemand_video, size: 80, color: Colors.orange),
+  //           const SizedBox(height: 16),
+  //           Text(
+  //             translate('service_watch_video_msg', widget.currentLang),
+  //             textAlign: TextAlign.center,
+  //             style: const TextStyle(fontSize: 16),
+  //           ),
+  //           const SizedBox(height: 16),
+  //           ElevatedButton(
+  //             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700),
+  //             onPressed: () {
+  //               AppAdManager().showNavigationRewardedAd(() {
+  //                 setState(() {
+  //                   _isServiceUnlockedForSession = true; // باز کردن قفل پس از تماشای ویدیو
+  //                 });
+  //               });
+  //             },
+  //             child: Text(translate('watch_video', widget.currentLang), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+  //           )
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
+
   if (!isPremium && (tier == 2 || tier == 3) && !_isServiceUnlockedForSession) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.ondemand_video, size: 80, color: Colors.orange),
-            const SizedBox(height: 16),
-            Text(
-              translate('service_watch_video_msg', widget.currentLang),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700),
-              onPressed: () {
-                AppAdManager().showNavigationRewardedAd(() {
-                  setState(() {
-                    _isServiceUnlockedForSession = true; // باز کردن قفل پس از تماشای ویدیو
-                  });
+  return Center(
+    child: Padding(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.ondemand_video, size: 80, color: Colors.orange),
+          const SizedBox(height: 16),
+          Text(
+            translate('service_watch_video_msg', widget.currentLang),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700),
+            onPressed: _isLoadingAd ? null : () { // جلوگیری از کلیک چندباره
+              setState(() => _isLoadingAd = true);
+              
+              AppAdManager().showNavigationRewardedAd(() {
+                if (!mounted) return;
+                setState(() {
+                  _isServiceUnlockedForSession = true; // باز شدن قفل
+                  _isLoadingAd = false;
                 });
-              },
-              child: Text(translate('watch_video', widget.currentLang), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          ],
-        ),
+              });
+            },
+            child: _isLoadingAd 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : Text(translate('watch_video', widget.currentLang), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          )
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
     final displayItems = maintenanceItems;
 
@@ -3567,6 +3791,7 @@ GestureDetector(
 
 @override
 Widget build(BuildContext context) {
+  super.build(context);
   // این بخش جادویی باعث میشه _fontScale روی کل اجزای صفحه اثر بذاره
   return MediaQuery(
     data: MediaQuery.of(context).copyWith(
@@ -3658,35 +3883,38 @@ Widget build(BuildContext context) {
           ValueListenableBuilder<bool>(
             valueListenable: PurchaseManager().isPremiumUser,
             builder: (context, isPremium, child) {
-              // اگر کاربر پرمیوم باشد، کل این بخش (بنرها و تبلیغات ادموب) کلاً غیب می‌شود
-              if (isPremium) return const SizedBox.shrink();
+              final showAdsStrip = isPremium || AppTimelineManager().currentTier >= 1;
+              if (!showAdsStrip) return const SizedBox.shrink();
+
+              if (isPremium && !_isAdLoaded && !_isBannerLoading) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) _loadBannerAd();
+                });
+              }
 
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                
-                  if (AppTimelineManager().currentTier >= 1) ...[
-                     _buildBottomPremiumBanner(context, widget.currentLang),
-                    if (_isAdLoaded && _bannerAd != null)
-                      Container(
-                        width: _bannerAd!.size.width.toDouble(),
-                        height: _bannerAd!.size.height.toDouble(),
-                        margin: const EdgeInsets.symmetric(vertical: 2),
-                        child: AdWidget(ad: _bannerAd!),
-                      )
-                    else
-                      Container(
-                        width: double.infinity,
-                        height: 50,
-                        color: Colors.grey.shade50,
-                        alignment: Alignment.center,
-                        child: const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+                  _buildBottomPremiumBanner(context, widget.currentLang),
+                  if (_isAdLoaded && _bannerAd != null)
+                    Container(
+                      width: _bannerAd!.size.width.toDouble(),
+                      height: _bannerAd!.size.height.toDouble(),
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      child: AdWidget(ad: _bannerAd!),
+                    )
+                  else
+                    Container(
+                      width: double.infinity,
+                      height: 50,
+                      color: Colors.grey.shade50,
+                      alignment: Alignment.center,
+                      child: const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                  ],
+                    ),
                 ],
               );
             },
@@ -3772,62 +4000,11 @@ Widget build(BuildContext context) {
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: selectedFuel,
+                  value: _dropdownFuelValue,
                   isExpanded: true,
                   icon: const Icon(Icons.arrow_drop_down_circle, color: Colors.blue),
                   borderRadius: BorderRadius.circular(12),
-                  items: [
-                    DropdownMenuItem(
-                      value: 'diesel',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.oil_barrel, color: Colors.black54, size: 20),
-                          const SizedBox(width: 10),
-                          Text(translate('fuel_diesel', widget.currentLang)),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'e10',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.local_gas_station, color: Colors.green, size: 20),
-                          const SizedBox(width: 10),
-                          const Text('E10'),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'e5',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.local_gas_station, color: Colors.green, size: 20),
-                          const SizedBox(width: 10),
-                          const Text('E5'),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'ev',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.electric_car, color: Colors.blue, size: 20),
-                          const SizedBox(width: 10),
-                          Text(translate('fuel_ev', widget.currentLang)),
-                        ],
-                      ),
-                    ),
-                    DropdownMenuItem(
-                      value: 'parking',
-                      child: Row(
-                        children: [
-                          const Icon(Icons.local_parking, color: Colors.orange, size: 20),
-                          const SizedBox(width: 10),
-                          Text(translate('parking', widget.currentLang)),
-                        ],
-                      ),
-                    ),
-                  ],
+                  items: _fuelTypeMenuItems(compact: false),
                   onChanged: (String? newValue) {
                     if (newValue != null) _onFuelTypeChanged(newValue);
                   },
@@ -3835,6 +4012,7 @@ Widget build(BuildContext context) {
               ),
             ),
           ),
+          _buildPriceScopeBanner(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2.0),
             child: Card(
@@ -3945,26 +4123,56 @@ Widget build(BuildContext context) {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: SegmentedButton<String>(
-              segments: [
-                ButtonSegment(
-                  value: 'map',
-                  label: Text(translate('map_view', widget.currentLang)),
-                  icon: const Icon(Icons.map),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SegmentedButton<String>(
+                    segments: [
+                      ButtonSegment(
+                        value: 'map',
+                        label: Text(translate('map_view', widget.currentLang)),
+                        icon: const Icon(Icons.map),
+                      ),
+                      ButtonSegment(
+                        value: 'list',
+                        label: Text(translate('list_view', widget.currentLang)),
+                        icon: const Icon(Icons.list),
+                      ),
+                    ],
+                    selected: {fuelViewMode},
+                    onSelectionChanged: (Set<String> newSelection) {
+                      setState(() => fuelViewMode = newSelection.first);
+                      if (newSelection.first == 'map') {
+                        _fitMapToSearchResults();
+                      }
+                    },
+                  ),
                 ),
-                ButtonSegment(
-                  value: 'list',
-                  label: Text(translate('list_view', widget.currentLang)),
-                  icon: const Icon(Icons.list),
-                ),
+                if (FuelDealsService.dealsSupported(_activeFuelCountryCode) &&
+                    selectedFuel != 'parking' &&
+                    selectedFuel != 'ev') ...[
+                  const SizedBox(width: 8),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: PurchaseManager().isPremiumUser,
+                    builder: (context, isPremium, _) {
+                      return IconButton.filledTonal(
+                        tooltip: isPremium
+                            ? translate('deals_fab', widget.currentLang)
+                            : translate(
+                                'deals_fab_locked',
+                                widget.currentLang,
+                              ),
+                        onPressed: _openFuelDealsSheet,
+                        icon: Icon(
+                          isPremium
+                              ? Icons.local_offer_outlined
+                              : Icons.lock_outline,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ],
-              selected: {fuelViewMode},
-              onSelectionChanged: (Set<String> newSelection) {
-                setState(() => fuelViewMode = newSelection.first);
-                if (newSelection.first == 'map') {
-                  _fitMapToSearchResults();
-                }
-              },
             ),
           ),
           if (fuelViewMode == 'map')
@@ -4036,14 +4244,355 @@ Widget build(BuildContext context) {
           ),
         ),
         if (isLoading || isSearchLoading)
-          const Positioned(
+          Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: LinearProgressIndicator(minHeight: 2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const LinearProgressIndicator(minHeight: 3),
+                Material(
+                  color: Colors.black.withOpacity(0.72),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            translate(
+                              'stations_loading_wait',
+                              widget.currentLang,
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        if (CommunityFuelService.isCrowdCountry(_activeFuelCountryCode) &&
+            selectedFuel != 'parking' &&
+            selectedFuel != 'ev')
+          Positioned(
+            left: 10,
+            bottom: 64,
+            child: FloatingActionButton.extended(
+              heroTag: 'communityReportFab',
+              onPressed: _showCommunityPriceReportDialog,
+              icon: const Icon(Icons.campaign),
+              label: Text(
+                translate('community_report_btn', widget.currentLang),
+              ),
+            ),
+          ),
+        if (FuelDealsService.dealsSupported(_activeFuelCountryCode) &&
+            selectedFuel != 'parking' &&
+            selectedFuel != 'ev')
+          Positioned(
+            left: 10,
+            bottom: CommunityFuelService.isCrowdCountry(_activeFuelCountryCode)
+                ? 128
+                : 64,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: PurchaseManager().isPremiumUser,
+              builder: (context, isPremium, _) {
+                return FloatingActionButton.extended(
+                  heroTag: 'fuelDealsFab',
+                  backgroundColor: const Color(0xFFFFF3E0),
+                  foregroundColor: Colors.brown.shade900,
+                  onPressed: _openFuelDealsSheet,
+                  icon: Icon(
+                    isPremium
+                        ? Icons.local_offer_outlined
+                        : Icons.lock_outline,
+                  ),
+                  label: Text(
+                    isPremium
+                        ? translate('deals_fab', widget.currentLang)
+                        : translate('deals_fab_locked', widget.currentLang),
+                  ),
+                );
+              },
+            ),
           ),
       ],
     );
+  }
+
+  Future<void> _openFuelDealsSheet() async {
+    final cc = _activeFuelCountryCode;
+    if (!FuelDealsService.dealsSupported(cc)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(translate('deal_err_country', widget.currentLang)),
+        ),
+      );
+      return;
+    }
+    // Advertise for free users; unlock full deals only after Premium purchase.
+    if (!PurchaseManager().isPremiumUser.value) {
+      await _showDealsPremiumGateDialog();
+      return;
+    }
+    await FuelDealsSheet.open(
+      context,
+      lang: widget.currentLang,
+      countryCode: cc,
+      lat: _mapCenterLat,
+      lng: _mapCenterLng,
+      selectedFuel: selectedFuel,
+      stations: stations,
+      fontScale: _fontScale,
+    );
+  }
+
+  Future<void> _showDealsPremiumGateDialog() async {
+    final buy = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Text(
+          translate('deals_premium_title', widget.currentLang),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                translate('deals_premium_desc', widget.currentLang),
+                textAlign: TextAlign.justify,
+                style: const TextStyle(height: 1.45),
+              ),
+              const SizedBox(height: 12),
+              _dealsPremiumBullet(
+                Icons.loyalty,
+                translate('deals_premium_b1', widget.currentLang),
+              ),
+              _dealsPremiumBullet(
+                Icons.phone_android,
+                translate('deals_premium_b2', widget.currentLang),
+              ),
+              _dealsPremiumBullet(
+                Icons.schedule,
+                translate('deals_premium_b3', widget.currentLang),
+              ),
+              _dealsPremiumBullet(
+                Icons.campaign,
+                translate('deals_premium_b4', widget.currentLang),
+              ),
+            ],
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(translate('cancel', widget.currentLang)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              translate('activate_premium_6months', widget.currentLang),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (buy == true) {
+      await PurchaseManager().buyPremium();
+      if (!mounted) return;
+      if (PurchaseManager().isPremiumUser.value) {
+        await _openFuelDealsSheet();
+      }
+    }
+  }
+
+  Widget _dealsPremiumBullet(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: Colors.brown.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: const TextStyle(height: 1.35, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showCommunityPriceReportDialog() async {
+    final cc = _activeFuelCountryCode;
+    if (!CommunityFuelService.isCrowdCountry(cc)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(translate('community_err_country', widget.currentLang)),
+        ),
+      );
+      return;
+    }
+
+    final priceCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
+    final points = await CommunityFuelService.getPoints();
+    if (!mounted) return;
+
+    final submitted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(translate('community_report_btn', widget.currentLang)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                translate('community_story', widget.currentLang),
+                style: TextStyle(
+                  fontSize: 14 * _fontScale,
+                  height: 1.45,
+                  color: Colors.brown.shade800,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                translate(
+                  'community_points',
+                  widget.currentLang,
+                  {'n': '$points'},
+                ),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText:
+                      translate('community_price_hint', widget.currentLang),
+                  border: const OutlineInputBorder(),
+                  suffixText: _activeCurrencyCode,
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: noteCtrl,
+                decoration: InputDecoration(
+                  labelText:
+                      translate('community_station_hint', widget.currentLang),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(translate('cancel', widget.currentLang)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(translate('community_submit', widget.currentLang)),
+          ),
+        ],
+      ),
+    );
+
+    if (submitted != true || !mounted) {
+      priceCtrl.dispose();
+      noteCtrl.dispose();
+      return;
+    }
+
+    final price = double.tryParse(priceCtrl.text.trim().replaceAll(',', '.'));
+    final note = noteCtrl.text;
+    priceCtrl.dispose();
+    noteCtrl.dispose();
+
+    if (price == null || price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(translate('community_err_price', widget.currentLang)),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final pos = await CommunityFuelService.requirePositionInCountry(cc);
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+
+    if (pos == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text(translate('community_err_location', widget.currentLang)),
+        ),
+      );
+      return;
+    }
+
+    final result = await CommunityFuelService.submitReport(
+      countryCode: cc,
+      fuelType: selectedFuel,
+      price: price,
+      position: pos,
+      stationNote: note,
+    );
+    if (!mounted) return;
+
+    final key = result?.messageKey ?? 'community_err_price';
+    final awarded = result?.points ?? 0;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          translate(key, widget.currentLang, {'n': '$awarded'}),
+        ),
+      ),
+    );
+
+    if (awarded > 0) {
+      await _searchStations(pos.latitude, pos.longitude);
+      setState(() {});
+    }
   }
 
   Widget _buildCompactSearchOverlay() {
@@ -4062,47 +4611,14 @@ Widget build(BuildContext context) {
             child: Row(
               children: [
                 SizedBox(
-                  width: 102,
+                  width: 128,
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
-                      value: selectedFuel,
+                      value: _dropdownFuelValue,
                       isDense: true,
                       isExpanded: true,
                       icon: const Icon(Icons.arrow_drop_down, size: 18),
-                      items: [
-                        DropdownMenuItem(
-                          value: 'diesel',
-                          child: Text(
-                            translate('fuel_diesel', widget.currentLang),
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        const DropdownMenuItem(
-                          value: 'e10',
-                          child: Text('E10', style: TextStyle(fontSize: 12)),
-                        ),
-                        const DropdownMenuItem(
-                          value: 'e5',
-                          child: Text('E5', style: TextStyle(fontSize: 12)),
-                        ),
-                        DropdownMenuItem(
-                          value: 'ev',
-                          child: Text(
-                            translate('fuel_ev', widget.currentLang),
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value: 'parking',
-                          child: Text(
-                            translate('parking', widget.currentLang),
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                        ),
-                      ],
+                      items: _fuelTypeMenuItems(compact: true),
                       onChanged: (String? newValue) {
                         if (newValue != null) _onFuelTypeChanged(newValue);
                       },
@@ -4180,6 +4696,7 @@ Widget build(BuildContext context) {
             ),
           ),
         ),
+        _buildPriceScopeBanner(padding: const EdgeInsets.only(top: 6)),
         if (showDrawer) ...[
           const SizedBox(height: 6),
           Material(
@@ -4268,9 +4785,7 @@ Widget build(BuildContext context) {
                     itemCount: stations.length,
                     itemBuilder: (context, index) {
                       final s = stations[index];
-                      final double? priceValue = double.tryParse(
-                        s['price'].toString(),
-                      );
+                      final double? priceValue = parseFuelPriceValue(s['price']);
                       final bool isCheap =
                           priceValue != null && priceValue < 1.70;
                       final facilities = getFacilities(s['lat'], s['lng']);
@@ -4465,7 +4980,15 @@ Widget build(BuildContext context) {
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               Text(
-                                                "${s['price']}",
+                                                selectedFuel == 'ev'
+                                                    ? "${s['price']}"
+                                                    : _formatStationPrice(
+                                                        s['price'],
+                                                        lat: (s['lat'] as num?)
+                                                            ?.toDouble(),
+                                                        lng: (s['lng'] as num?)
+                                                            ?.toDouble(),
+                                                      ),
                                                 style: TextStyle(
                                                   fontSize:
                                                       18 *
@@ -4490,7 +5013,9 @@ Widget build(BuildContext context) {
                                             ],
                                           ),
                                           Text(
-                                            selectedFuel == 'ev' ? "KW" : "EUR",
+                                            selectedFuel == 'ev'
+                                                ? 'kW'
+                                                : '${_activeCurrencyCode}${fuelUnitSuffixForCountry(_activeFuelCountryCode)}',
                                             style: const TextStyle(
                                               fontSize: 9,
                                               color: Colors.grey,
@@ -4524,25 +5049,197 @@ Widget build(BuildContext context) {
   }
 
 
-  // این متد را درون کلاس _FuelDashboardState قرار دهید
-void _onFuelTypeChanged(String newFuelType) {
-  if (selectedFuel == newFuelType) return;
-  
-  setState(() {
-    selectedFuel = newFuelType;
-    isLoading = true;
-    stations = []; // خالی کردن لیست قبلی برای جلوگیری از پرش تصویر
-    _mapStations = [];
-  });
-  
-  // فراخوانی مجدد متد با موقعیت مکانی فعلی کاربر
-  //fetchPrices(lat: userLat, lng: userLng);
-  // ذخیره انتخاب جدید در حافظه
+  String? _priceScopeNoticeText() {
+    if (selectedFuel == 'ev' || selectedFuel == 'parking') return null;
+    final cc = _activeFuelCountryCode;
+    final lang = widget.currentLang;
+    final country =
+        countryByCode(cc)?.displayName(lang) ?? cc.toUpperCase();
+    final unit = translate(fuelVolumeUnitTranslationKey(cc), lang);
+    final unitLine = translate('price_notice_unit', lang, {'unit': unit});
+
+    final scope = fuelPriceScopeFor(cc);
+    String? scopeLine;
+    switch (scope) {
+      case FuelPriceScope.nationalAverage:
+        scopeLine =
+            translate('price_notice_national', lang, {'country': country});
+        break;
+      case FuelPriceScope.monthlyOfficial:
+        scopeLine =
+            translate('price_notice_monthly', lang, {'country': country});
+        break;
+      case FuelPriceScope.fixedOfficial:
+        scopeLine =
+            translate('price_notice_fixed', lang, {'country': country});
+        break;
+      case FuelPriceScope.provincial:
+        final region = cc == 'ca'
+            ? OfficialFuelPrices.canadaProvinceFor(_mapCenterLat, _mapCenterLng)
+            : OfficialFuelPrices.chinaProvinceFor(_mapCenterLat, _mapCenterLng);
+        scopeLine = translate('price_notice_provincial', lang, {
+          'region': region,
+          'country': country,
+        });
+        break;
+      case FuelPriceScope.crowdOrAverage:
+        if (cc == 'us') {
+          final region =
+              OfficialFuelPrices.usaRegionFor(_mapCenterLat, _mapCenterLng);
+          scopeLine = translate('price_notice_us', lang, {
+            'region': region,
+            'country': country,
+          });
+        } else {
+          scopeLine =
+              translate('price_notice_crowd', lang, {'country': country});
+        }
+        break;
+      case FuelPriceScope.station:
+        scopeLine = null;
+        break;
+    }
+    if (scopeLine == null) return unitLine;
+    return '$scopeLine\n$unitLine';
+  }
+
+  Widget _buildPriceScopeBanner({EdgeInsetsGeometry? padding}) {
+    final text = _priceScopeNoticeText();
+    if (text == null) return const SizedBox.shrink();
+    return Padding(
+      padding: padding ?? EdgeInsets.zero,
+      child: Material(
+        color: const Color(0xFFFFF8E7),
+        borderRadius: BorderRadius.circular(10),
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, size: 18, color: Colors.amber.shade800),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 12 * _fontScale,
+                    height: 1.35,
+                    color: Colors.brown.shade900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String get _dropdownFuelValue {
+    return normalizeFuelTypeForCountry(
+      selectedFuel,
+      _activeFuelCountryCode,
+    );
+  }
+
+  List<DropdownMenuItem<String>> _fuelTypeMenuItems({required bool compact}) {
+    final lang = widget.currentLang;
+    final grades = fuelGradesForCountry(_activeFuelCountryCode);
+    final items = <DropdownMenuItem<String>>[];
+    for (final g in grades) {
+      final label = g.label(lang);
+      if (compact) {
+        items.add(
+          DropdownMenuItem(
+            value: g.key,
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+        );
+      } else {
+        items.add(
+          DropdownMenuItem(
+            value: g.key,
+            child: Row(
+              children: [
+                Icon(
+                  g.key == 'diesel'
+                      ? Icons.oil_barrel
+                      : Icons.local_gas_station,
+                  color: g.key == 'diesel' ? Colors.black54 : Colors.green,
+                  size: 20,
+                ),
+                const SizedBox(width: 10),
+                Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+    if (compact) {
+      items.addAll([
+        DropdownMenuItem(
+          value: 'ev',
+          child: Text(
+            translate('fuel_ev', lang),
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+        DropdownMenuItem(
+          value: 'parking',
+          child: Text(
+            translate('parking', lang),
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+      ]);
+    } else {
+      items.addAll([
+        DropdownMenuItem(
+          value: 'ev',
+          child: Row(
+            children: [
+              const Icon(Icons.electric_car, color: Colors.blue, size: 20),
+              const SizedBox(width: 10),
+              Text(translate('fuel_ev', lang)),
+            ],
+          ),
+        ),
+        DropdownMenuItem(
+          value: 'parking',
+          child: Row(
+            children: [
+              const Icon(Icons.local_parking, color: Colors.orange, size: 20),
+              const SizedBox(width: 10),
+              Text(translate('parking', lang)),
+            ],
+          ),
+        ),
+      ]);
+    }
+    return items;
+  }
+
+  void _onFuelTypeChanged(String newFuelType) {
+    if (selectedFuel == newFuelType) return;
+
+    setState(() {
+      selectedFuel = newFuelType;
+      isLoading = true;
+      stations = [];
+      _mapStations = [];
+    });
+
     Hive.box('settingsBox').put('lastSelectedFuel', newFuelType);
-    
-    // فراخوانی متد جامع جستجو با آخرین موقعیت مکانی (چه GPS چه شهر جستجو شده)
     _searchStations(userLat, userLng);
-}
+  }
 
 // فراخوانی این متد درون initState صفحه اصلی
 Future<void> _checkThreeMonthMileageReminder() async {

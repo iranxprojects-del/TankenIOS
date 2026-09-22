@@ -319,8 +319,15 @@ const Map<String, Map<String, String>> localizedStrings = {
     'ru': 'Авторизованный сервис', 'ar': 'ورشة معتمدة', 'uk': 'Авторизований сервіс', 'ro': 'Atelier autorizat', 'pl': 'Autoryzowany warsztat',
   },
   'phone_number': {
-    'en': 'Phone number', 'de': 'Telefonnummer', 'fa': 'شماره تلفن', 'tr': 'Telefon numarası',
-    'ru': 'Номер телефона', 'ar': 'رقم الهاتف', 'uk': 'Номер телефону', 'ro': 'Număr de telefon', 'pl': 'Numer telefonu',
+   'en': 'Repair shop phone number',
+  'de': 'Werkstatt-Telefonnummer',
+  'fa': 'شماره تلفن تعمیرگاه',
+  'tr': 'Tamirhane telefon numarası',
+  'ru': 'Номер телефона мастерской',
+  'ar': 'رقم هاتف ورشة التصليح',
+  'uk': 'Номер телефону майстерні',
+  'ro': 'Număr de telefon atelier',
+  'pl': 'Numer telefonu warsztatu',
   },
   'service_overview_hint': {
     'en': 'Enter your workshop phone and service details here to get reminders.', 'de': 'Geben Sie hier die Telefonnummer der Werkstatt und die Servicedaten ein, um Erinnerungen zu erhalten.', 'fa': 'برای دریافت یادآوری‌ها، اطلاعات سرویس و تلفن تعمیرگاه را اینجا وارد کنید.', 'tr': 'Hatırlatıcı almak için servis ayrıntılarını ve atölye telefonunu buraya girin.',
@@ -1407,6 +1414,962 @@ const Map<String, Map<String, String>> localizedStrings = {
     'uk': 'Товар у магазині не знайдено. Перевірений ID: {id}',
     'ro': 'Produsul nu a fost găsit în magazin. ID verificat: {id}',
     'pl': 'Nie znaleziono produktu w sklepie. Sprawdzone ID: {id}',
+  },
+  'community_report_btn': {
+    'en': 'Report live price',
+    'de': 'Live-Preis melden',
+    'fa': 'گزارش قیمت لحظه‌ای',
+    'tr': 'Anlık fiyat bildir',
+    'ru': 'Сообщить цену',
+    'ar': 'بلّغ عن السعر',
+    'uk': 'Повідомити ціну',
+    'ro': 'Raportează prețul',
+    'pl': 'Zgłoś cenę',
+  },
+  'community_points': {
+    'en': 'Community points: {n}',
+    'de': 'Community-Punkte: {n}',
+    'fa': 'امتیاز همیاری: {n}',
+    'tr': 'Topluluk puanı: {n}',
+    'ru': 'Очки сообщества: {n}',
+    'ar': 'نقاط المجتمع: {n}',
+    'uk': 'Бали спільноти: {n}',
+    'ro': 'Puncte comunitate: {n}',
+    'pl': 'Punkty społeczności: {n}',
+  },
+  'community_story': {
+    'en':
+        'You are the eyes of our Persian-speaking family on the road. One honest price from you can save a traveller\'s time, money, and stress — turn on your light for the next person.',
+    'de':
+        'Du bist die Augen unserer persischsprachigen Familie unterwegs. Ein ehrlicher Preis von dir kann Zeit, Geld und Stress sparen.',
+    'fa':
+        'تو چشم‌های خانوادهٔ فارسی‌زبان روی جاده‌ای. یک قیمت صادقانه از تو می‌تواند وقت، پول و اضطراب یک هم‌وطن را کم کند — چراغت را برای نفر بعدی روشن کن. کمک تو گردش اطلاعات بین جامعهٔ ماست؛ هر گزارش، یک دست مهربان روی شانهٔ کسی است که غریب است و فقط می‌خواهد با خیال راحت باک بزند.',
+    'tr':
+        'Yoldaki Farsça konuşan ailemizin gözlerisin. Dürüst bir fiyat, bir yolcunun zamanını ve parasını kurtarabilir.',
+    'ru':
+        'Ты — глаза нашей персоязычной семьи в дороге. Честная цена экономит время и деньги путнику.',
+    'ar':
+        'أنت عيون عائلتنا الناطقة بالفارسية على الطريق. سعر صادق منك يوفّر الوقت والمال للتالي.',
+    'uk':
+        'Ти — очі нашої перськомовної родини в дорозі. Чесна ціна економить час і гроші мандрівнику.',
+    'ro':
+        'Ești ochii familiei noastre vorbitoare de persană pe drum. Un preț sincer ajută următorul călător.',
+    'pl':
+        'Jesteś oczami naszej perskojęzycznej rodziny w drodze. Uczciwa cena pomaga następnemu podróżnemu.',
+  },
+  'community_price_hint': {
+    'en': 'Price per litre',
+    'de': 'Preis pro Liter',
+    'fa': 'قیمت هر لیتر',
+    'tr': 'Litre fiyatı',
+    'ru': 'Цена за литр',
+    'ar': 'السعر لكل لتر',
+    'uk': 'Ціна за літр',
+    'ro': 'Preț pe litru',
+    'pl': 'Cena za litr',
+  },
+  'community_station_hint': {
+    'en': 'Station name (optional)',
+    'de': 'Stationsname (optional)',
+    'fa': 'نام پمپ (اختیاری)',
+    'tr': 'İstasyon adı (isteğe bağlı)',
+    'ru': 'Название АЗС (необязательно)',
+    'ar': 'اسم المحطة (اختياري)',
+    'uk': 'Назва АЗС (необовʼязково)',
+    'ro': 'Nume stație (opțional)',
+    'pl': 'Nazwa stacji (opcjonalnie)',
+  },
+  'community_submit': {
+    'en': 'Send & earn points',
+    'de': 'Senden & Punkte verdienen',
+    'fa': 'ارسال و دریافت امتیاز',
+    'tr': 'Gönder ve puan kazan',
+    'ru': 'Отправить и получить очки',
+    'ar': 'أرسل واكسب نقاطاً',
+    'uk': 'Надіслати й отримати бали',
+    'ro': 'Trimite și câștigă puncte',
+    'pl': 'Wyślij i zbierz punkty',
+  },
+  'community_ok': {
+    'en': 'Thank you! +{n} points. Your report helps the community.',
+    'de': 'Danke! +{n} Punkte. Deine Meldung hilft der Community.',
+    'fa': 'ممنون از مهربانی‌ات! +{n} امتیاز. گزارش تو به هم‌وطنان رسید.',
+    'tr': 'Teşekkürler! +{n} puan. Bildirimin topluluğa yardımcı oldu.',
+    'ru': 'Спасибо! +{n} очков. Ваш отчёт помогает сообществу.',
+    'ar': 'شكراً! +{n} نقطة. بلاغك يساعد المجتمع.',
+    'uk': 'Дякуємо! +{n} балів. Ваш звіт допомагає спільноті.',
+    'ro': 'Mulțumim! +{n} puncte. Raportul tău ajută comunitatea.',
+    'pl': 'Dziękujemy! +{n} punktów. Twoje zgłoszenie pomaga społeczności.',
+  },
+  'community_err_location': {
+    'en': 'GPS must be inside this country to report.',
+    'de': 'GPS muss in diesem Land sein, um zu melden.',
+    'fa': 'برای گزارش، موقعیت GPS باید داخل همین کشور باشد.',
+    'tr': 'Bildirmek için GPS bu ülkede olmalı.',
+    'ru': 'GPS должен быть внутри этой страны.',
+    'ar': 'يجب أن يكون موقعك داخل هذا البلد للإبلاغ.',
+    'uk': 'GPS має бути всередині цієї країни.',
+    'ro': 'GPS-ul trebuie să fie în această țară.',
+    'pl': 'GPS musi być w tym kraju.',
+  },
+  'community_err_cooldown': {
+    'en': 'Please wait a few minutes before another report.',
+    'de': 'Bitte warte ein paar Minuten vor der nächsten Meldung.',
+    'fa': 'لطفاً چند دقیقه صبر کن و بعد دوباره گزارش بده.',
+    'tr': 'Yeni bildirimden önce birkaç dakika bekle.',
+    'ru': 'Подождите несколько минут перед следующим отчётом.',
+    'ar': 'انتظر بضع دقائق قبل بلاغ آخر.',
+    'uk': 'Зачекайте кілька хвилин перед наступним звітом.',
+    'ro': 'Așteaptă câteva minute înainte de un nou raport.',
+    'pl': 'Poczekaj kilka minut przed kolejnym zgłoszeniem.',
+  },
+  'community_err_price': {
+    'en': 'Enter a valid price.',
+    'de': 'Gib einen gültigen Preis ein.',
+    'fa': 'یک قیمت معتبر وارد کن.',
+    'tr': 'Geçerli bir fiyat gir.',
+    'ru': 'Введите корректную цену.',
+    'ar': 'أدخل سعراً صالحاً.',
+    'uk': 'Введіть коректну ціну.',
+    'ro': 'Introdu un preț valid.',
+    'pl': 'Podaj poprawną cenę.',
+  },
+  'community_err_country': {
+    'en': 'Live reports are only for USA, Canada and India.',
+    'de': 'Live-Meldungen nur für USA, Kanada und Indien.',
+    'fa': 'گزارش لحظه‌ای فعلاً فقط برای آمریکا، کانادا و هند است.',
+    'tr': 'Anlık bildirim yalnızca ABD, Kanada ve Hindistan için.',
+    'ru': 'Живые отчёты только для США, Канады и Индии.',
+    'ar': 'التقارير اللحظية لأمريكا وكندا والهند فقط.',
+    'uk': 'Живі звіти лише для США, Канади та Індії.',
+    'ro': 'Rapoarte live doar pentru SUA, Canada și India.',
+    'pl': 'Raporty na żywo tylko dla USA, Kanady i Indii.',
+  },
+  'price_notice_national': {
+    'en':
+        'Shown prices are the national average for {country} — not live per-station pump prices.',
+    'de':
+        'Angezeigte Preise sind der Landesdurchschnitt für {country} — keine Live-Preise einzelner Tankstellen.',
+    'fa':
+        'قیمت‌های نمایش‌داده‌شده میانگین سراسری کشور {country} است — نه قیمت لحظه‌ای هر پمپ بنزین.',
+    'tr':
+        'Gösterilen fiyatlar {country} ülke ortalamasıdır — istasyon bazlı canlı fiyat değildir.',
+    'ru':
+        'Показаны средние цены по стране {country}, а не цены отдельных АЗС.',
+    'ar':
+        'الأسعار المعروضة هي متوسط الدولة لـ {country} وليست أسعار محطات فردية.',
+    'uk':
+        'Показано середні ціни по країні {country}, а не ціни окремих АЗС.',
+    'ro':
+        'Prețurile afișate sunt media națională pentru {country}, nu prețuri pe stație.',
+    'pl':
+        'Wyświetlane ceny to średnia krajowa dla {country}, nie ceny poszczególnych stacji.',
+  },
+  'price_notice_monthly': {
+    'en':
+        'Official monthly nationwide rate for {country} — the same at every pump this month.',
+    'de':
+        'Offizieller monatlicher Landespreis für {country} — diesen Monat an allen Tankstellen gleich.',
+    'fa':
+        'نرخ رسمی ماهانه سراسری {country} — این ماه در همه پمپ‌ها یکسان است.',
+    'tr':
+        '{country} için resmi aylık ülke fiyatı — bu ay tüm istasyonlarda aynı.',
+    'ru':
+        'Официальная месячная цена по всей стране {country} — одинакова на всех АЗС в этом месяце.',
+    'ar':
+        'السعر الرسمي الشهري على مستوى {country} — موحّد في كل المحطات هذا الشهر.',
+    'uk':
+        'Офіційна місячна ціна по всій країні {country} — однакова на всіх АЗС цього місяця.',
+    'ro':
+        'Tariful oficial lunar la nivel național pentru {country} — același la toate pompele luna aceasta.',
+    'pl':
+        'Oficjalna miesięczna stawka ogólnokrajowa dla {country} — taka sama na wszystkich stacjach w tym miesiącu.',
+  },
+  'price_notice_fixed': {
+    'en':
+        'Official regulated nationwide price for {country} — the same at every pump.',
+    'de':
+        'Offiziell regulierter Landespreis für {country} — an allen Tankstellen gleich.',
+    'fa':
+        'قیمت رسمی تنظیم‌شده سراسری {country} — در همه پمپ‌ها یکسان است.',
+    'tr':
+        '{country} için resmi düzenlenmiş ülke fiyatı — tüm istasyonlarda aynı.',
+    'ru':
+        'Официальная регулируемая цена по стране {country} — одинакова на всех АЗС.',
+    'ar':
+        'السعر الرسمي المنظّم على مستوى {country} — موحّد في كل المحطات.',
+    'uk':
+        'Офіційна регульована ціна по країні {country} — однакова на всіх АЗС.',
+    'ro':
+        'Preț oficial reglementat la nivel național pentru {country} — același la toate pompele.',
+    'pl':
+        'Oficjalna regulowana cena ogólnokrajowa dla {country} — taka sama na wszystkich stacjach.',
+  },
+  'price_notice_provincial': {
+    'en':
+        'Guide retail price for {region} ({country}) — provincial/state average, not each pump’s live price.',
+    'de':
+        'Richtpreis für {region} ({country}) — Provinz-/Landesdurchschnitt, kein Live-Preis einzelner Tankstellen.',
+    'fa':
+        'قیمت راهنمای {region} ({country}) — میانگین استان/ایالت است، نه قیمت لحظه‌ای هر پمپ.',
+    'tr':
+        '{region} ({country}) için rehber perakende fiyatı — eyalet/il ortalaması, canlı pompa fiyatı değil.',
+    'ru':
+        'Ориентировочная цена для {region} ({country}) — среднее по провинции/штату, не цена отдельной АЗС.',
+    'ar':
+        'سعر إرشادي لـ {region} ({country}) — متوسط المقاطعة/الولاية وليس سعر كل محطة.',
+    'uk':
+        'Орієнтовна ціна для {region} ({country}) — середнє по провінції/штату, не ціна окремої АЗС.',
+    'ro':
+        'Preț orientativ pentru {region} ({country}) — medie provincială/de stat, nu preț live pe pompă.',
+    'pl':
+        'Cena orientacyjna dla {region} ({country}) — średnia prowincji/stanu, nie żywa cena stacji.',
+  },
+  'price_notice_crowd': {
+    'en':
+        'Prices for {country} come from community reports or the national average when reports are sparse.',
+    'de':
+        'Preise für {country} stammen aus Community-Meldungen oder dem Landesdurchschnitt, wenn wenig gemeldet wird.',
+    'fa':
+        'قیمت‌های {country} از گزارش کاربران است؛ اگر گزارش کم باشد، میانگین سراسری کشور نشان داده می‌شود.',
+    'tr':
+        '{country} fiyatları topluluk bildirimlerinden gelir; azsa ülke ortalaması gösterilir.',
+    'ru':
+        'Цены для {country} — из отчётов сообщества или среднего по стране, если отчётов мало.',
+    'ar':
+        'أسعار {country} من تقارير المجتمع أو متوسط الدولة إن قلّت التقارير.',
+    'uk':
+        'Ціни для {country} — зі звітів спільноти або середнього по країні, якщо звітів мало.',
+    'ro':
+        'Prețurile pentru {country} vin din rapoarte comunitare sau media națională dacă sunt puține.',
+    'pl':
+        'Ceny dla {country} pochodzą z zgłoszeń społeczności lub średniej krajowej, gdy zgłoszeń jest mało.',
+  },
+  'price_notice_us': {
+    'en':
+        'USA ({region}): community live reports when available, otherwise regional retail average — USD per US gallon.',
+    'de':
+        'USA ({region}): Community-Live-Preise falls vorhanden, sonst regionaler Durchschnitt — USD pro US-Gallon.',
+    'fa':
+        'آمریکا ({region}): در صورت وجود، گزارش لحظه‌ای کاربران؛ وگرنه میانگین منطقه‌ای — دلار به ازای هر گالن آمریکایی.',
+    'tr':
+        'ABD ({region}): varsa topluluk anlık fiyatları, yoksa bölgesel ortalama — ABD galonu başına USD.',
+    'ru':
+        'США ({region}): живые отчёты сообщества или региональное среднее — USD за американский галлон.',
+    'ar':
+        'أمريكا ({region}): تقارير المجتمع إن وُجدت، وإلا متوسط المنطقة — دولار لكل غالون أمريكي.',
+    'uk':
+        'США ({region}): живі звіти спільноти або регіональне середнє — USD за американський галон.',
+    'ro':
+        'SUA ({region}): rapoarte live din comunitate sau media regională — USD pe galon SUA.',
+    'pl':
+        'USA ({region}): zgłoszenia społeczności lub średnia regionalna — USD za galon USA.',
+  },
+  'price_notice_unit': {
+    'en': 'Prices are shown per {unit}.',
+    'de': 'Preise werden pro {unit} angezeigt.',
+    'fa': 'قیمت‌ها بر حسب {unit} نمایش داده می‌شوند.',
+    'tr': 'Fiyatlar {unit} başına gösterilir.',
+    'ru': 'Цены указаны за {unit}.',
+    'ar': 'تُعرض الأسعار لكل {unit}.',
+    'uk': 'Ціни вказані за {unit}.',
+    'ro': 'Prețurile sunt afișate pe {unit}.',
+    'pl': 'Ceny są podane za {unit}.',
+  },
+  'price_unit_liter': {
+    'en': 'litre',
+    'de': 'Liter',
+    'fa': 'لیتر',
+    'tr': 'litre',
+    'ru': 'литр',
+    'ar': 'لتر',
+    'uk': 'літр',
+    'ro': 'litru',
+    'pl': 'litr',
+  },
+  'price_unit_gallon': {
+    'en': 'US gallon',
+    'de': 'US-Gallon',
+    'fa': 'گالن آمریکایی',
+    'tr': 'ABD galonu',
+    'ru': 'американский галлон',
+    'ar': 'غالون أمريكي',
+    'uk': 'американський галон',
+    'ro': 'galon SUA',
+    'pl': 'galon USA',
+  },
+  'stations_loading_wait': {
+    'en': 'Loading fuel stations… please wait a moment.',
+    'de': 'Tankstellen werden geladen… bitte kurz warten.',
+    'fa': 'در حال بارگذاری پمپ‌بنزین‌ها… لطفاً چند لحظه منتظر بمانید.',
+    'tr': 'Benzin istasyonları yükleniyor… lütfen bekleyin.',
+    'ru': 'Загрузка АЗС… пожалуйста, подождите.',
+    'ar': 'جاري تحميل المحطات… يرجى الانتظار قليلاً.',
+    'uk': 'Завантаження АЗС… зачекайте хвилинку.',
+    'ro': 'Se încarcă stațiile… așteaptă puțin.',
+    'pl': 'Ładowanie stacji… proszę chwilę poczekać.',
+  },
+  'deals_fab': {
+    'en': 'Deals',
+    'de': 'Deals',
+    'fa': 'تخفیف‌ها',
+    'tr': 'Fırsatlar',
+    'ru': 'Скидки',
+    'ar': 'عروض',
+    'uk': 'Знижки',
+    'ro': 'Oferte',
+    'pl': 'Okazje',
+  },
+  'deals_fab_locked': {
+    'en': 'Deals · Premium',
+    'de': 'Deals · Premium',
+    'fa': 'تخفیف‌ها · پرمیوم',
+    'tr': 'Fırsatlar · Premium',
+    'ru': 'Скидки · Premium',
+    'ar': 'عروض · مميز',
+    'uk': 'Знижки · Premium',
+    'ro': 'Oferte · Premium',
+    'pl': 'Okazje · Premium',
+  },
+  'deals_premium_title': {
+    'en': 'Unlock savings tools',
+    'de': 'Spar-Tools freischalten',
+    'fa': 'ابزارهای صرفه‌جویی را باز کن',
+    'tr': 'Tasarruf araçlarını aç',
+    'ru': 'Откройте инструменты экономии',
+    'ar': 'افتح أدوات التوفير',
+    'uk': 'Відкрийте інструменти економії',
+    'ro': 'Deblochează uneltele de economisit',
+    'pl': 'Odblokuj narzędzia oszczędzania',
+  },
+  'deals_premium_desc': {
+    'en':
+        'Four real ways to pay less at the pump — preview for everyone, full access with Premium.',
+    'de':
+        'Vier echte Wege, an der Zapfsäule weniger zu zahlen — Vorschau für alle, voller Zugang mit Premium.',
+    'fa':
+        'چهار راه واقعی برای کمتر پرداخت کردن سر پمپ — برای همه نمایش داده می‌شود، با پرمیوم کامل باز می‌شود.',
+    'tr':
+        'Pompadan daha az ödemenin dört yolu — herkese önizleme, Premium ile tam erişim.',
+    'ru':
+        'Четыре реальных способа платить меньше на АЗС — превью всем, полный доступ с Premium.',
+    'ar':
+        'أربع طرق حقيقية لدفع أقل عند المضخة — معاينة للجميع، وفتح كامل مع النسخة المميزة.',
+    'uk':
+        'Чотири реальні способи платити менше на АЗС — превʼю всім, повний доступ з Premium.',
+    'ro':
+        'Patru moduri reale să plătești mai puțin la pompă — previzualizare pentru toți, acces complet cu Premium.',
+    'pl':
+        'Cztery realne sposoby, by płacić mniej na stacji — podgląd dla wszystkich, pełny dostęp z Premium.',
+  },
+  'deals_premium_b1': {
+    'en': 'Loyalty rewards — gifts & discounts up to €10 per fill',
+    'de': 'Treue-Vorteile — Geschenke & Rabatte bis zu 10 € pro Tankung',
+    'fa': 'جایزه و تخفیف کارت وفاداری — تا ۱۰ یورو هدیه در هر سوخت‌گیری',
+    'tr': 'Sadakat ödülleri — dolum başına 10 €’ya kadar hediye/indirim',
+    'ru': 'Бонусы лояльности — подарки и скидки до €10 за заправку',
+    'ar': 'مكافآت الولاء — هدايا وخصومات حتى 10 يورو لكل تعبئة',
+    'uk': 'Бонуси лояльності — подарунки та знижки до €10 за заправку',
+    'ro': 'Recompense de loialitate — cadouri și reduceri până la 10 €',
+    'pl': 'Nagrody lojalnościowe — prezenty i zniżki do 10 € za tankowanie',
+  },
+  'deals_premium_b2': {
+    'en': 'Pay from your phone at the pump — up to €5 off your first fill',
+    'de': 'Vom Handy an der Säule zahlen — bis zu 5 € auf die erste Tankung',
+    'fa': 'پرداخت از موبایل سر پمپ — تا ۵ یورو تخفیف اولین سوخت‌گیری',
+    'tr': 'Telefondan pompa ödemesi — ilk dolumda 5 €’ya kadar indirim',
+    'ru': 'Оплата с телефона у колонки — до €5 на первую заправку',
+    'ar': 'ادفع من هاتفك عند المضخة — خصم حتى 5 يورو على أول تعبئة',
+    'uk': 'Оплата з телефону біля колонки — до €5 на першу заправку',
+    'ro': 'Plătești din telefon la pompă — până la 5 € la prima alimentare',
+    'pl': 'Płatność telefonem przy dystrybutorze — do 5 € na pierwsze tankowanie',
+  },
+  'deals_premium_b3': {
+    'en': 'Know the cheapest hour — often save several euros on a 50 L tank',
+    'de': 'Günstigste Uhrzeit kennen — oft mehrere Euro auf 50 L sparen',
+    'fa': 'بهترین ساعت سوخت‌گیری را بدان — روی ۵۰ لیتر چند یورو واقعی کمتر بده',
+    'tr': 'En ucuz saati öğren — 50 litrede birkaç euro tasarruf',
+    'ru': 'Узнайте самый дешёвый час — часто экономия в несколько евро на 50 л',
+    'ar': 'اعرف أرخص ساعة للتزود — غالباً توفير عدة يوروات على 50 لتراً',
+    'uk': 'Дізнайтеся найдешевшу годину — часто економія кілька євро на 50 л',
+    'ro': 'Află ora cea mai ieftină — deseori economisești câțiva euro pe 50 L',
+    'pl': 'Poznaj najtańszą godzinę — często kilka euro oszczędności na 50 L',
+  },
+  'deals_premium_b4': {
+    'en': 'Live local deals shared by drivers near you — hours-only flash savings',
+    'de': 'Lokale Blitz-Deals von Fahrern in deiner Nähe — nur für wenige Stunden',
+    'fa': 'تخفیف‌های لحظه‌ای نزدیک تو که راننده‌ها همین الان ثبت می‌کنند',
+    'tr': 'Yakınındaki sürücülerin paylaştığı anlık yerel indirimler',
+    'ru': 'Мгновенные местные скидки от водителей рядом с вами',
+    'ar': 'عروض محلية فورية يشاركها السائقون قربك',
+    'uk': 'Миттєві місцеві знижки від водіїв поруч',
+    'ro': 'Oferte locale live de la șoferii din apropiere',
+    'pl': 'Lokalne okazje na żywo od kierowców w pobliżu',
+  },
+  'deals_title': {
+    'en': 'Coupons & savings',
+    'de': 'Coupons & Sparen',
+    'fa': 'کوپن‌ها و صرفه‌جویی',
+    'tr': 'Kuponlar ve tasarruf',
+    'ru': 'Купоны и экономия',
+    'ar': 'كوبونات وتوفير',
+    'uk': 'Купони та економія',
+    'ro': 'Cupoane și economii',
+    'pl': 'Kupony i oszczędności',
+  },
+  'deals_loyalty_section': {
+    'en': 'Active loyalty coupons',
+    'de': 'Aktive Treue-Coupons',
+    'fa': 'کوپن‌های فعال شبکه‌های وفاداری',
+    'tr': 'Aktif sadakat kuponları',
+    'ru': 'Активные купоны лояльности',
+    'ar': 'كوبونات الولاء النشطة',
+    'uk': 'Активні купони лояльності',
+    'ro': 'Cupoane de loialitate active',
+    'pl': 'Aktywne kupony lojalnościowe',
+  },
+  'deals_payapp_section': {
+    'en': 'Pay-at-pump apps (referral / first fill)',
+    'de': 'Apps zum Bezahlen an der Säule',
+    'fa': 'اپ‌های پرداخت سر پمپ (دعوت / سوخت اول)',
+    'tr': 'Pompa başı ödeme uygulamaları',
+    'ru': 'Приложения оплаты у колонки',
+    'ar': 'تطبيقات الدفع عند المضخة',
+    'uk': 'Додатки оплати біля колонки',
+    'ro': 'Aplicații plată la pompă',
+    'pl': 'Aplikacje płatności przy dystrybutorze',
+  },
+  'deals_crowd_section': {
+    'en': 'Deals shared by drivers',
+    'de': 'Von Fahrern geteilte Deals',
+    'fa': 'تخفیف‌های ثبت‌شده توسط کاربران',
+    'tr': 'Sürücülerin paylaştığı fırsatlar',
+    'ru': 'Скидки от водителей',
+    'ar': 'عروض من السائقين',
+    'uk': 'Знижки від водіїв',
+    'ro': 'Oferte de la șoferi',
+    'pl': 'Okazje od kierowców',
+  },
+  'deals_time_section': {
+    'en': 'Smart timing (Germany)',
+    'de': 'Günstig tanken nach Uhrzeit',
+    'fa': 'تخفیف زمانی هوشمند (آلمان)',
+    'tr': 'Akıllı zamanlama (Almanya)',
+    'ru': 'Умное время заправки (Германия)',
+    'ar': 'توقيت ذكي للتزود (ألمانيا)',
+    'uk': 'Розумний час заправки (Німеччина)',
+    'ro': 'Oră inteligentă (Germania)',
+    'pl': 'Inteligentna pora (Niemcy)',
+  },
+  'deals_empty_loyalty': {
+    'en': 'No curated loyalty promos for this country yet.',
+    'de': 'Noch keine Treue-Promos für dieses Land.',
+    'fa': 'فعلاً کوپن وفاداری آماده‌ای برای این کشور نیست.',
+    'tr': 'Bu ülke için henüz sadakat kampanyası yok.',
+    'ru': 'Пока нет купонов лояльности для этой страны.',
+    'ar': 'لا كوبونات ولاء لهذا البلد بعد.',
+    'uk': 'Поки немає купонів лояльності для цієї країни.',
+    'ro': 'Încă nu există promoții de loialitate.',
+    'pl': 'Brak promocji lojalnościowych dla tego kraju.',
+  },
+  'deals_empty_payapp': {
+    'en': 'No pay-at-pump referral offers listed here yet.',
+    'de': 'Noch keine Pay-at-pump Angebote gelistet.',
+    'fa': 'فعلاً پیشنهاد دعوت اپ پرداخت سر پمپ برای اینجا نیست.',
+    'tr': 'Henüz pompa başı ödeme teklifi yok.',
+    'ru': 'Пока нет предложений оплаты у колонки.',
+    'ar': 'لا عروض دفع عند المضخة بعد.',
+    'uk': 'Поки немає пропозицій оплати біля колонки.',
+    'ro': 'Încă nu există oferte plată la pompă.',
+    'pl': 'Brak ofert płatności przy dystrybutorze.',
+  },
+  'deals_empty_crowd': {
+    'en': 'No live local deals yet — be the first to share one.',
+    'de': 'Noch keine lokalen Deals — teile den ersten.',
+    'fa': 'هنوز تخفیف محلی ثبت نشده — اولین نفر باش که Share می‌کند.',
+    'tr': 'Henüz yerel fırsat yok — ilk paylaşan sen ol.',
+    'ru': 'Пока нет местных скидок — поделитесь первой.',
+    'ar': 'لا عروض محلية بعد — كن أول من يشارك.',
+    'uk': 'Поки немає місцевих знижок — поділіться першим.',
+    'ro': 'Încă nu există oferte locale — fii primul.',
+    'pl': 'Brak lokalnych okazji — udostępnij pierwszą.',
+  },
+  'deals_disclaimer': {
+    'en':
+        'Promos change often. Verify in the loyalty / pay-app before fueling. Time tips are estimates from the German evening-price pattern (MTS-K) plus your local TankerKönig samples — not a guarantee.',
+    'de':
+        'Aktionen ändern sich oft. Vor dem Tanken in der Treue-/Pay-App prüfen. Zeittipps schätzen das abendliche Preismuster (MTS-K) plus lokale TankerKönig-Stichproben — keine Garantie.',
+    'fa':
+        'پروموشن‌ها زود عوض می‌شوند؛ قبل از سوخت‌گیری در اپ وفاداری/پرداخت چک کن. راهنمای زمانی بر اساس الگوی شب آلمان (MTS-K) و نمونه‌های محلی TankerKönig است — تضمین قطعی نیست.',
+    'tr':
+        'Kampanyalar sık değişir. Yakıt almadan önce uygulamada kontrol edin. Zaman ipuçları tahmindir.',
+    'ru':
+        'Акции часто меняются. Проверяйте в приложении перед заправкой. Советы по времени — оценка.',
+    'ar':
+        'العروض تتغير كثيراً. تحقق في التطبيق قبل التزود. نصائح التوقيت تقديرية.',
+    'uk':
+        'Акції часто змінюються. Перевірте в додатку перед заправкою. Поради щодо часу — оцінка.',
+    'ro':
+        'Promoțiile se schimbă des. Verifică în aplicație înainte. Sfaturile de oră sunt estimări.',
+    'pl':
+        'Promocje często się zmieniają. Sprawdź w aplikacji przed tankowaniem. Wskazówki czasowe to szacunki.',
+  },
+  'deal_payback_title': {
+    'en': 'Payback × points at Aral',
+    'de': 'Payback Mehrfachpunkte bei Aral',
+    'fa': 'Payback امتیاز چندبرابر در Aral',
+    'tr': 'Aral’da Payback çoklu puan',
+    'ru': 'Payback x баллов на Aral',
+    'ar': 'Payback نقاط مضاعفة في Aral',
+    'uk': 'Payback x балів на Aral',
+    'ro': 'Payback puncte multiple la Aral',
+    'pl': 'Payback x punkty na Aral',
+  },
+  'deal_payback_detail': {
+    'en':
+        '{network} multi-point coupons (e.g. 5×/10×) at {brand} often equal ~{cents} ¢/L. Check the Payback app for today’s active codes.',
+    'de':
+        '{network}-Mehrfachpunkte (z. B. 5×/10×) bei {brand} entsprechen oft ~{cents} ct/L. Aktuelle Codes in der Payback-App prüfen.',
+    'fa':
+        'کوپن‌های چندبرابر {network} (مثل ۵×/۱۰×) در {brand} معمولاً حدود {cents} سنت در لیتر می‌ارزند. کدهای روز را در اپ Payback ببین.',
+    'tr':
+        '{brand} konumunda {network} çoklu puan (~{cents} ct/L). Güncel kodlar için Payback uygulamasına bakın.',
+    'ru':
+        'Множители {network} на {brand} ≈ {cents} ¢/л. Актуальные коды — в приложении Payback.',
+    'ar':
+        'نقاط {network} المضاعفة في {brand} ≈ {cents} سنت/لتر. تحقق من التطبيق.',
+    'uk':
+        'Множники {network} на {brand} ≈ {cents} ¢/л. Актуальні коди — в додатку Payback.',
+    'ro':
+        'Puncte multiple {network} la {brand} ≈ {cents} ct/L. Verifică în app Payback.',
+    'pl':
+        'Punkty {network} x na {brand} ≈ {cents} ct/L. Sprawdź kody w aplikacji Payback.',
+  },
+  'deal_deutschlandcard_title': {
+    'en': 'DeutschlandCard at Esso',
+    'de': 'DeutschlandCard bei Esso',
+    'fa': 'DeutschlandCard در Esso',
+    'tr': 'Esso’da DeutschlandCard',
+    'ru': 'DeutschlandCard на Esso',
+    'ar': 'DeutschlandCard في Esso',
+    'uk': 'DeutschlandCard на Esso',
+    'ro': 'DeutschlandCard la Esso',
+    'pl': 'DeutschlandCard na Esso',
+  },
+  'deal_deutschlandcard_detail': {
+    'en':
+        '{network} bonus points at {brand} ≈ {cents} ¢/L equivalent. Open DeutschlandCard for live offers.',
+    'de':
+        '{network}-Bonuspunkte bei {brand} ≈ {cents} ct/L. Aktuelle Angebote in der DeutschlandCard-App.',
+    'fa':
+        'امتیازهای اضافی {network} در {brand} حدود {cents} سنت/لیتر. پیشنهادهای روز را در اپ DeutschlandCard ببین.',
+    'tr':
+        '{brand}’da {network} bonus ≈ {cents} ct/L. Güncel teklifler uygulamada.',
+    'ru':
+        'Бонусы {network} на {brand} ≈ {cents} ¢/л. Актуальные акции в приложении.',
+    'ar':
+        'بونص {network} في {brand} ≈ {cents} سنت/لتر. تحقق من التطبيق.',
+    'uk':
+        'Бонуси {network} на {brand} ≈ {cents} ¢/л. Актуальні акції в додатку.',
+    'ro':
+        'Bonus {network} la {brand} ≈ {cents} ct/L. Verifică în aplicație.',
+    'pl':
+        'Bonus {network} na {brand} ≈ {cents} ct/L. Sprawdź w aplikacji.',
+  },
+  'deal_shell_title': {
+    'en': 'Shell ClubSmart boost',
+    'de': 'Shell ClubSmart Extra-Punkte',
+    'fa': 'تقویت Shell ClubSmart',
+    'tr': 'Shell ClubSmart ekstra puan',
+    'ru': 'Бонус Shell ClubSmart',
+    'ar': 'تعزيز Shell ClubSmart',
+    'uk': 'Бонус Shell ClubSmart',
+    'ro': 'Bonus Shell ClubSmart',
+    'pl': 'Bonus Shell ClubSmart',
+  },
+  'deal_shell_detail': {
+    'en':
+        '{network} boost weeks ≈ {cents} ¢/L at {brand}. Check ClubSmart for the current multiplier.',
+    'de':
+        '{network}-Aktionswochen ≈ {cents} ct/L bei {brand}. Aktuellen Multiplikator in ClubSmart prüfen.',
+    'fa':
+        'هفته‌های تقویتی {network} در {brand} حدود {cents} سنت/لیتر. ضریب روز را در ClubSmart چک کن.',
+    'tr':
+        '{brand}’da {network} ≈ {cents} ct/L. Güncel çarpanı ClubSmart’ta görün.',
+    'ru':
+        'Акции {network} на {brand} ≈ {cents} ¢/л. Множитель — в ClubSmart.',
+    'ar':
+        'تعزيز {network} في {brand} ≈ {cents} سنت/لتر. تحقق من ClubSmart.',
+    'uk':
+        'Акції {network} на {brand} ≈ {cents} ¢/л. Множник — у ClubSmart.',
+    'ro':
+        'Boost {network} la {brand} ≈ {cents} ct/L. Verifică în ClubSmart.',
+    'pl':
+        'Boost {network} na {brand} ≈ {cents} ct/L. Sprawdź w ClubSmart.',
+  },
+  'deal_shell_us_title': {
+    'en': 'Shell Fuel Rewards (USA)',
+    'de': 'Shell Fuel Rewards (USA)',
+    'fa': 'Shell Fuel Rewards (آمریکا)',
+    'tr': 'Shell Fuel Rewards (ABD)',
+    'ru': 'Shell Fuel Rewards (США)',
+    'ar': 'Shell Fuel Rewards (أمريكا)',
+    'uk': 'Shell Fuel Rewards (США)',
+    'ro': 'Shell Fuel Rewards (SUA)',
+    'pl': 'Shell Fuel Rewards (USA)',
+  },
+  'deal_shell_us_detail': {
+    'en':
+        'Stack Fuel Rewards offers — often several ¢/gal off. Check the Fuel Rewards app for today’s stack.',
+    'de':
+        'Fuel-Rewards-Angebote stapeln — oft mehrere ct/gal Rabatt. Heutige Stacks in der App prüfen.',
+    'fa':
+        'پیشنهادهای Fuel Rewards را روی هم بگذار — اغلب چند سنت در گالن. استک امروز را در اپ ببین.',
+    'tr':
+        'Fuel Rewards tekliflerini birleştirin — genelde birkaç ¢/gal. Bugünkü stack uygulamada.',
+    'ru':
+        'Складывайте Fuel Rewards — часто несколько ¢/галлон. Сегодняшний стек в приложении.',
+    'ar':
+        'اجمع عروض Fuel Rewards — غالباً عدة سنتات/غالون. تحقق من التطبيق.',
+    'uk':
+        'Складайте Fuel Rewards — часто кілька ¢/галон. Сьогоднішній стек у додатку.',
+    'ro':
+        'Combină ofertele Fuel Rewards — adesea câțiva ¢/gal. Verifică stack-ul de azi.',
+    'pl':
+        'Łącz oferty Fuel Rewards — często kilka ¢/gal. Sprawdź dzisiejszy stack.',
+  },
+  'deal_petro_title': {
+    'en': 'Petro-Points (Canada)',
+    'de': 'Petro-Points (Kanada)',
+    'fa': 'Petro-Points (کانادا)',
+    'tr': 'Petro-Points (Kanada)',
+    'ru': 'Petro-Points (Канада)',
+    'ar': 'Petro-Points (كندا)',
+    'uk': 'Petro-Points (Канада)',
+    'ro': 'Petro-Points (Canada)',
+    'pl': 'Petro-Points (Kanada)',
+  },
+  'deal_petro_detail': {
+    'en':
+        'Petro-Canada {network} boosts ≈ {cents} ¢/L. Open Petro-Points for active offers.',
+    'de':
+        'Petro-Canada {network}-Aktionen ≈ {cents} ct/L. Aktuelle Angebote in Petro-Points.',
+    'fa':
+        'تقویت {network} در پتروکانادا حدود {cents} سنت/لیتر. پیشنهادهای فعال را در Petro-Points ببین.',
+    'tr':
+        'Petro-Canada {network} ≈ {cents} ct/L. Aktif teklifler uygulamada.',
+    'ru':
+        'Акции {network} Petro-Canada ≈ {cents} ¢/л. Активные офферы в приложении.',
+    'ar':
+        'تعزيز {network} في بترو كندا ≈ {cents} سنت/لتر. تحقق من التطبيق.',
+    'uk':
+        'Акції {network} Petro-Canada ≈ {cents} ¢/л. Активні офери в додатку.',
+    'ro':
+        'Boost {network} Petro-Canada ≈ {cents} ct/L. Verifică în app.',
+    'pl':
+        'Boost {network} Petro-Canada ≈ {cents} ct/L. Sprawdź w aplikacji.',
+  },
+  'deal_ryd_bonus': {
+    'en': 'Often €5 off first fill via invite — pay from the car, no kiosk.',
+    'de': 'Oft 5 € auf die erste Tankung per Einladung — zahlen aus dem Auto.',
+    'fa': 'معمولاً ۵€ تخفیف اولین سوخت با دعوت — پرداخت از داخل ماشین بدون باجه.',
+    'tr': 'Davetle genelde ilk dolumda 5€ — arabadan ödeyin.',
+    'ru': 'Часто €5 на первую заправку по приглашению — оплата из авто.',
+    'ar': 'غالباً 5€ على أول تعبئة بالدعوة — ادفع من السيارة.',
+    'uk': 'Часто €5 на першу заправку за запрошенням — оплата з авто.',
+    'ro': 'Adesea 5€ la prima alimentare cu invitație — plătești din mașină.',
+    'pl': 'Często 5€ na pierwsze tankowanie z zaproszenia — płatność z auta.',
+  },
+  'deal_pace_bonus': {
+    'en': 'Pace Drive: pay at the pump in-app; watch for first-fill / referral credit.',
+    'de': 'Pace Drive: an der Säule in der App zahlen; Ersttank-/Referral-Bonus prüfen.',
+    'fa': 'Pace Drive: پرداخت سر نازل داخل اپ؛ اعتبار دعوت/سوخت اول را چک کن.',
+    'tr': 'Pace Drive: pompadan uygulama ile ödeyin; ilk dolum/davet bonusuna bakın.',
+    'ru': 'Pace Drive: оплата у колонки в приложении; бонус за приглашение.',
+    'ar': 'Pace Drive: ادفع عند المضخة من التطبيق؛ تحقق من مكافأة الدعوة.',
+    'uk': 'Pace Drive: оплата біля колонки в додатку; бонус за запрошення.',
+    'ro': 'Pace Drive: plătești la pompă în app; verifică bonusul de invitație.',
+    'pl': 'Pace Drive: płatność przy dystrybutorze w app; sprawdź bonus zaproszenia.',
+  },
+  'deal_fillgo_bonus': {
+    'en': 'Fill & Go style pay-at-pump — check current first-use promo in the partner app.',
+    'de': 'Fill & Go / Pay-at-pump — aktuelle Erstnutzer-Aktion in der Partner-App prüfen.',
+    'fa': 'سبک Fill & Go برای پرداخت سر پمپ — پرومو کاربر اول را در اپ شریک ببین.',
+    'tr': 'Fill & Go tarzı pompa ödemesi — ilk kullanım kampanyasını kontrol edin.',
+    'ru': 'Оплата у колонки Fill & Go — проверьте акцию первого использования.',
+    'ar': 'دفع عند المضخة بأسلوب Fill & Go — تحقق من عرض أول استخدام.',
+    'uk': 'Оплата біля колонки Fill & Go — перевірте акцію першого використання.',
+    'ro': 'Plată la pompă tip Fill & Go — verifică promoția de primă folosire.',
+    'pl': 'Płatność Fill & Go przy dystrybutorze — sprawdź promo pierwszego użycia.',
+  },
+  'deal_shell_app_bonus': {
+    'en': 'Shell App (USA): unlock app-only cents-off and Fuel Rewards stacks.',
+    'de': 'Shell App (USA): App-Rabatte und Fuel-Rewards-Stacks freischalten.',
+    'fa': 'اپ Shell (آمریکا): سنت‌آف مخصوص اپ و استک Fuel Rewards.',
+    'tr': 'Shell App (ABD): uygulamaya özel indirim ve Fuel Rewards.',
+    'ru': 'Shell App (США): скидки только в приложении и Fuel Rewards.',
+    'ar': 'تطبيق Shell (أمريكا): خصومات التطبيق وFuel Rewards.',
+    'uk': 'Shell App (США): знижки лише в додатку та Fuel Rewards.',
+    'ro': 'Shell App (SUA): reduceri doar în app și Fuel Rewards.',
+    'pl': 'Shell App (USA): zniżki tylko w app i Fuel Rewards.',
+  },
+  'deal_open': {
+    'en': 'Open',
+    'de': 'Öffnen',
+    'fa': 'باز کردن',
+    'tr': 'Aç',
+    'ru': 'Открыть',
+    'ar': 'فتح',
+    'uk': 'Відкрити',
+    'ro': 'Deschide',
+    'pl': 'Otwórz',
+  },
+  'deal_time_wait': {
+    'en':
+        'Now ~€{price}/L. If you wait about {hours}h until 18:00–22:00, you may save ~{cents} ¢/L — about €{euros} on {litres} L (evening pattern + TankerKönig samples).',
+    'de':
+        'Jetzt ca. €{price}/L. Warte ~{hours} Std. bis 18–22 Uhr: oft ~{cents} ct/L günstiger — ca. €{euros} auf {litres} L (Abendmuster + TankerKönig).',
+    'fa':
+        'الان حدود €{price}/L. اگر حدود {hours} ساعت تا بازهٔ ۱۸–۲۲ صبر کنی، ممکن است ~{cents} سنت/لیتر ارزان‌تر شود — روی {litres} لیتر حدود €{euros} (الگوی شب + نمونه‌های TankerKönig).',
+    'tr':
+        'Şu an ~€{price}/L. 18–22’ye ~{hours} saat beklersen ~{cents} ct/L, {litres} L’de ~€{euros} tasarruf olabilir.',
+    'ru':
+        'Сейчас ~€{price}/л. Подождите ~{hours} ч до 18–22: часто ~{cents} ¢/л, ≈ €{euros} на {litres} л.',
+    'ar':
+        'الآن ~€{price}/لتر. إن انتظرت ~{hours} ساعة حتى 18–22 قد توفر ~{cents} سنت/لتر ≈ €{euros} لـ {litres} لتر.',
+    'uk':
+        'Зараз ~€{price}/л. Зачекайте ~{hours} год до 18–22: часто ~{cents} ¢/л, ≈ €{euros} на {litres} л.',
+    'ro':
+        'Acum ~€{price}/L. Dacă aștepți ~{hours} h până la 18–22, poți economisi ~{cents} ct/L ≈ €{euros} pe {litres} L.',
+    'pl':
+        'Teraz ~€{price}/L. Poczekaj ~{hours} h do 18–22: często ~{cents} ct/L ≈ €{euros} na {litres} L.',
+  },
+  'deal_time_now_cheap': {
+    'en':
+        'You are in the typical cheap window (18:00–22:00). Evening prices are often ~{cents} ¢/L lower — about €{euros} on {litres} L vs morning.',
+    'de':
+        'Du bist im günstigen Fenster (18–22 Uhr). Abends oft ~{cents} ct/L günstiger — ca. €{euros} auf {litres} L gegenüber morgens.',
+    'fa':
+        'الان در بازهٔ ارزان معمول (۱۸–۲۲) هستی. شب معمولاً ~{cents} سنت/لیتر ارزان‌تر از صبح است — روی {litres} لیتر حدود €{euros}.',
+    'tr':
+        'Ucuz penceredesiniz (18–22). Akşam genelde ~{cents} ct/L daha ucuz — {litres} L’de ~€{euros}.',
+    'ru':
+        'Вы в дешёвом окне (18–22). Вечером часто на ~{cents} ¢/л дешевле — ≈ €{euros} на {litres} л.',
+    'ar':
+        'أنت في نافذة السعر الرخيص (18–22). المساء غالباً أرخص بـ ~{cents} سنت/لتر ≈ €{euros} لـ {litres} لتر.',
+    'uk':
+        'Ви в дешевому вікні (18–22). Увечері часто на ~{cents} ¢/л дешевше — ≈ €{euros} на {litres} л.',
+    'ro':
+        'Ești în fereastra ieftină (18–22). Seara adesea cu ~{cents} ct/L mai ieftin ≈ €{euros} pe {litres} L.',
+    'pl':
+        'Jesteś w tanim oknie (18–22). Wieczorem często o ~{cents} ct/L taniej ≈ €{euros} na {litres} L.',
+  },
+  'deal_time_night': {
+    'en':
+        'Overnight prices vary. The strongest pattern is evening 18:00–22:00 (~{cents} ¢/L, ≈ €{euros} on {litres} L vs morning).',
+    'de':
+        'Nachtpreise schwanken. Stärkstes Muster: 18–22 Uhr (~{cents} ct/L, ≈ €{euros} auf {litres} L vs. morgens).',
+    'fa':
+        'قیمت شبانه متغیر است. قوی‌ترین الگو بازهٔ ۱۸–۲۲ است (~{cents} سنت/لیتر، حدود €{euros} روی {litres} لیتر نسبت به صبح).',
+    'tr':
+        'Gece fiyatları değişir. En güçlü desen 18–22 (~{cents} ct/L, {litres} L’de ~€{euros}).',
+    'ru':
+        'Ночные цены плавают. Лучший паттерн 18–22 (~{cents} ¢/л, ≈ €{euros} на {litres} л).',
+    'ar':
+        'أسعار الليل تتقلب. أقوى نمط 18–22 (~{cents} سنت/لتر ≈ €{euros} لـ {litres} لتر).',
+    'uk':
+        'Нічні ціни плавають. Найкращий патерн 18–22 (~{cents} ¢/л ≈ €{euros} на {litres} л).',
+    'ro':
+        'Prețurile de noapte variază. Cel mai bun tipar: 18–22 (~{cents} ct/L ≈ €{euros} pe {litres} L).',
+    'pl':
+        'Ceny nocne bywają różne. Najsilniejszy wzorzec: 18–22 (~{cents} ct/L ≈ €{euros} na {litres} L).',
+  },
+  'deal_share_btn': {
+    'en': 'Share',
+    'de': 'Teilen',
+    'fa': 'ثبت تخفیف',
+    'tr': 'Paylaş',
+    'ru': 'Поделиться',
+    'ar': 'مشاركة',
+    'uk': 'Поділитися',
+    'ro': 'Distribuie',
+    'pl': 'Udostępnij',
+  },
+  'deal_share_title': {
+    'en': 'Share a local deal',
+    'de': 'Lokalen Deal teilen',
+    'fa': 'تخفیف محلی را ثبت کن',
+    'tr': 'Yerel fırsat paylaş',
+    'ru': 'Поделиться местной скидкой',
+    'ar': 'شارك عرضاً محلياً',
+    'uk': 'Поділитися місцевою знижкою',
+    'ro': 'Distribuie o ofertă locală',
+    'pl': 'Udostępnij lokalną okazję',
+  },
+  'deal_share_title_field': {
+    'en': 'Title (e.g. JET −3 ct until 8pm)',
+    'de': 'Titel (z. B. JET −3 ct bis 20 Uhr)',
+    'fa': 'عنوان (مثلاً JET منهای ۳ سنت تا ۲۰)',
+    'tr': 'Başlık (örn. JET −3 ct 20:00’e kadar)',
+    'ru': 'Заголовок (напр. JET −3 ct до 20:00)',
+    'ar': 'العنوان (مثل JET −3 سنت حتى 20)',
+    'uk': 'Заголовок (напр. JET −3 ct до 20:00)',
+    'ro': 'Titlu (ex. JET −3 ct până la 20)',
+    'pl': 'Tytuł (np. JET −3 ct do 20:00)',
+  },
+  'deal_share_detail_field': {
+    'en': 'Details (Kaufland card, hours, …)',
+    'de': 'Details (Kaufland-Karte, Uhrzeit, …)',
+    'fa': 'جزئیات (کارت Kaufland، ساعت، …)',
+    'tr': 'Ayrıntı (Kaufland kartı, saat, …)',
+    'ru': 'Детали (карта Kaufland, часы, …)',
+    'ar': 'التفاصيل (بطاقة Kaufland، الساعات، …)',
+    'uk': 'Деталі (картка Kaufland, години, …)',
+    'ro': 'Detalii (card Kaufland, ore, …)',
+    'pl': 'Szczegóły (karta Kaufland, godziny, …)',
+  },
+  'deal_share_station_field': {
+    'en': 'Station / place (optional)',
+    'de': 'Tankstelle / Ort (optional)',
+    'fa': 'پمپ / مکان (اختیاری)',
+    'tr': 'İstasyon / yer (isteğe bağlı)',
+    'ru': 'АЗС / место (необязательно)',
+    'ar': 'المحطة / المكان (اختياري)',
+    'uk': 'АЗС / місце (необовʼязково)',
+    'ro': 'Stație / loc (opțional)',
+    'pl': 'Stacja / miejsce (opcjonalnie)',
+  },
+  'deal_share_code_field': {
+    'en': 'Code (optional)',
+    'de': 'Code (optional)',
+    'fa': 'کد (اختیاری)',
+    'tr': 'Kod (isteğe bağlı)',
+    'ru': 'Код (необязательно)',
+    'ar': 'الرمز (اختياري)',
+    'uk': 'Код (необовʼязково)',
+    'ro': 'Cod (opțional)',
+    'pl': 'Kod (opcjonalnie)',
+  },
+  'deal_share_hours': {
+    'en': 'Valid for about {n} hours',
+    'de': 'Gültig ca. {n} Stunden',
+    'fa': 'حدود {n} ساعت معتبر',
+    'tr': 'Yaklaşık {n} saat geçerli',
+    'ru': 'Действует около {n} ч',
+    'ar': 'صالح نحو {n} ساعة',
+    'uk': 'Діє близько {n} год',
+    'ro': 'Valabil circa {n} ore',
+    'pl': 'Ważne ok. {n} godzin',
+  },
+  'deal_share_submit': {
+    'en': 'Publish',
+    'de': 'Veröffentlichen',
+    'fa': 'انتشار',
+    'tr': 'Yayınla',
+    'ru': 'Опубликовать',
+    'ar': 'نشر',
+    'uk': 'Опублікувати',
+    'ro': 'Publică',
+    'pl': 'Opublikuj',
+  },
+  'deal_submit_ok': {
+    'en': 'Thanks! +{n} points. Your deal helps other drivers.',
+    'de': 'Danke! +{n} Punkte. Dein Deal hilft anderen.',
+    'fa': 'ممنون! +{n} امتیاز. تخفیف تو به بقیه راننده‌ها رسید.',
+    'tr': 'Teşekkürler! +{n} puan. Fırsatın başkalarına yardımcı oldu.',
+    'ru': 'Спасибо! +{n} очков. Ваша скидка помогает другим.',
+    'ar': 'شكراً! +{n} نقطة. عرضك يساعد الآخرين.',
+    'uk': 'Дякуємо! +{n} балів. Ваша знижка допомагає іншим.',
+    'ro': 'Mulțumim! +{n} puncte. Oferta ta ajută pe alții.',
+    'pl': 'Dziękujemy! +{n} punktów. Twoja okazja pomaga innym.',
+  },
+  'deal_err_country': {
+    'en': 'Deals are not enabled for this country.',
+    'de': 'Deals für dieses Land nicht aktiv.',
+    'fa': 'تخفیف‌ها برای این کشور فعال نیست.',
+    'tr': 'Bu ülke için fırsatlar kapalı.',
+    'ru': 'Скидки для этой страны недоступны.',
+    'ar': 'العروض غير مفعّلة لهذا البلد.',
+    'uk': 'Знижки для цієї країни вимкнені.',
+    'ro': 'Ofertele nu sunt active pentru această țară.',
+    'pl': 'Okazje nie są włączone dla tego kraju.',
+  },
+  'deal_err_title': {
+    'en': 'Enter a clearer title.',
+    'de': 'Bitte einen klareren Titel eingeben.',
+    'fa': 'عنوان واضح‌تری بنویس.',
+    'tr': 'Daha net bir başlık girin.',
+    'ru': 'Введите более понятный заголовок.',
+    'ar': 'أدخل عنواناً أوضح.',
+    'uk': 'Введіть зрозуміліший заголовок.',
+    'ro': 'Introdu un titlu mai clar.',
+    'pl': 'Podaj jaśniejszy tytuł.',
+  },
+  'deal_err_expiry': {
+    'en': 'Expiry must be in the future.',
+    'de': 'Ablauf muss in der Zukunft liegen.',
+    'fa': 'تاریخ انقضا باید در آینده باشد.',
+    'tr': 'Bitiş gelecekte olmalı.',
+    'ru': 'Срок должен быть в будущем.',
+    'ar': 'يجب أن يكون الانتهاء في المستقبل.',
+    'uk': 'Термін має бути в майбутньому.',
+    'ro': 'Expirarea trebuie să fie în viitor.',
+    'pl': 'Wygaśnięcie musi być w przyszłości.',
+  },
+  'deal_err_cooldown': {
+    'en': 'Please wait a few minutes before another deal.',
+    'de': 'Bitte ein paar Minuten warten vor dem nächsten Deal.',
+    'fa': 'چند دقیقه صبر کن و بعد دوباره تخفیف ثبت کن.',
+    'tr': 'Yeni fırsattan önce birkaç dakika bekleyin.',
+    'ru': 'Подождите несколько минут перед следующей скидкой.',
+    'ar': 'انتظر بضع دقائق قبل عرض آخر.',
+    'uk': 'Зачекайте кілька хвилин перед наступною знижкою.',
+    'ro': 'Așteaptă câteva minute înainte de o nouă ofertă.',
+    'pl': 'Poczekaj kilka minut przed kolejną okazją.',
+  },
+  'deal_expires_in': {
+    'en': 'Expires in ~{h} h',
+    'de': 'Läuft in ~{h} Std. ab',
+    'fa': 'حدود {h} ساعت تا انقضا',
+    'tr': '~{h} saat içinde bitiyor',
+    'ru': 'Истекает через ~{h} ч',
+    'ar': 'ينتهي خلال ~{h} ساعة',
+    'uk': 'Закінчується за ~{h} год',
+    'ro': 'Expiră în ~{h} h',
+    'pl': 'Wygasa za ~{h} h',
+  },
+  'deal_copy_code': {
+    'en': 'Copy code',
+    'de': 'Code kopieren',
+    'fa': 'کپی کد',
+    'tr': 'Kodu kopyala',
+    'ru': 'Копировать код',
+    'ar': 'نسخ الرمز',
+    'uk': 'Копіювати код',
+    'ro': 'Copiază codul',
+    'pl': 'Kopiuj kod',
+  },
+  'deal_copied': {
+    'en': 'Code copied',
+    'de': 'Code kopiert',
+    'fa': 'کد کپی شد',
+    'tr': 'Kod kopyalandı',
+    'ru': 'Код скопирован',
+    'ar': 'تم نسخ الرمز',
+    'uk': 'Код скопійовано',
+    'ro': 'Cod copiat',
+    'pl': 'Kod skopiowany',
+  },
+  'deals_premium_required': {
+    'en': 'Premium required to use deals.',
+    'de': 'Premium nötig für Deals.',
+    'fa': 'برای استفاده از تخفیف‌ها پرمیوم لازم است.',
+    'tr': 'Fırsatlar için Premium gerekir.',
+    'ru': 'Для скидок нужен Premium.',
+    'ar': 'يلزم Premium لاستخدام العروض.',
+    'uk': 'Для знижок потрібен Premium.',
+    'ro': 'Premium necesar pentru oferte.',
+    'pl': 'Do okazji potrzebne jest Premium.',
   },
 };
 
