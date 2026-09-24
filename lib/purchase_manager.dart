@@ -10,10 +10,24 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:app_tracking_transparency/app_tracking_transparency.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'translations.dart';
 //import 'app_timeline_manager.dart';
 
+Future<void>? _firebaseInitFuture;
 
+/// راه‌اندازی Firebase را حداکثر یک‌بار شروع می‌کند و همه‌ی نقاطی که به
+/// Firestore/Cloud Functions نیاز دارند همین Future مشترک را await می‌کنند —
+/// صرف‌نظر از ترتیب فراخوانی، هیچ‌کس زودتر از ساخته‌شدن اپ [DEFAULT] به
+/// Firebase دست نمی‌زند (رفع خطای core/no-app).
+Future<void> ensureFirebaseInitialized() {
+  return _firebaseInitFuture ??= Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  ).catchError((e) {
+    debugPrint('Firebase init error: $e');
+  });
+}
 
 class PurchaseManager {
   // پیاده‌سازی الگوی سنگلتون برای دسترسی یکپارچه در کل اپلیکیشن
@@ -174,6 +188,7 @@ class PurchaseManager {
   }
 
   Future<void> _grantPremiumAccess() async {
+    await ensureFirebaseInitialized();
     try {
       await AppTimelineManager().savePremiumPurchaseToServer();
     } catch (e) {
@@ -208,6 +223,7 @@ class PurchaseManager {
 
   /// بررسی بک‌گراند در فایربیس هنگام باز شدن برنامه
   Future<void> checkPremiumStatus() async {
+    await ensureFirebaseInitialized();
     String? deviceId = await _getDeviceId();
     if (deviceId != null) {
       try {
@@ -618,6 +634,7 @@ class AppTimelineManager {
     String deviceId = await _getDeviceId();
 
     // ۲. چتر امنیتی دوم: سینک دوطرفه داده‌ها با فایرستور
+    await ensureFirebaseInitialized();
     try {
       final docRef = FirebaseFirestore.instance.collection('tanken_users_timeline').doc(deviceId);
       final docSnap = await docRef.get();

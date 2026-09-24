@@ -857,7 +857,7 @@ class FuelPriceService {
     const urls = [
       'https://storelocator.asda.com/fuel_prices_data.json',
       'https://www.bp.com/en_gb/united-kingdom/home/fuelprices/fuel_prices_data.json',
-      'https://fuelprices.esso.co.uk/latitude/fuel_prices_data.json',
+      'https://fuelprices.esso.co.uk/latestdata.json',
       'https://www.morrisons.com/fuel-prices/fuel.json',
       'https://www.shell.co.uk/fuel-prices-data/_jcr_content.feed.json',
       'https://www.shell.co.uk/fuel-prices-data.json',
@@ -974,15 +974,16 @@ class FuelPriceService {
     String fuelType,
     String? australiaApiKey,
   ) async {
-    final key = australiaApiKey?.trim() ?? '';
-    if (key.isEmpty) {
-      // Soft bonus: WA FuelWatch RSS near Perth when no key
-      if (_nearPerth(lat, lng)) {
-        final wa = await _fetchWaFuelWatch(lat, lng, radiusKm, fuelType);
-        if (wa.isNotEmpty) return wa;
-      }
-      return [];
+    // WA FuelWatch is free/public (no key needed) and covers all of Western
+    // Australia, not just Perth — try it first whenever the query falls
+    // inside WA. NSW FuelCheck (needs a key) covers the rest of the country.
+    if (_inWesternAustralia(lat, lng)) {
+      final wa = await _fetchWaFuelWatch(lat, lng, radiusKm, fuelType);
+      if (wa.isNotEmpty) return wa;
     }
+
+    final key = australiaApiKey?.trim() ?? '';
+    if (key.isEmpty) return [];
 
     try {
       final auFuel = fuelType == 'diesel'
@@ -1056,10 +1057,19 @@ class FuelPriceService {
     }
   }
 
-  static bool _nearPerth(double lat, double lng) {
-    return haversineKm(lat, lng, -31.9505, 115.8605) < 120;
+  /// Rough Western Australia bounding box — good enough to decide whether to
+  /// try the free, state-wide FuelWatch feed before falling back to NSW
+  /// FuelCheck (which needs an API key).
+  static bool _inWesternAustralia(double lat, double lng) {
+    return lat <= -13.5 && lat >= -35.5 && lng >= 112.5 && lng <= 129.5;
   }
 
+  // The old `fuelwatch/rss?Product=N` feed was retired when the WA
+  // government rebuilt fuelwatch.wa.gov.au as an Angular app; it now returns
+  // that app's index.html instead of RSS. The replacement is the same JSON
+  // API the new site itself calls: GET /api/sites?fuelType=ULP|PUP|98R|DSL,
+  // which — unlike the old RSS feed — also gives each station's real
+  // lat/lng instead of a single fake Perth-CBD point for every result.
   static Future<List<Map<String, dynamic>>> _fetchWaFuelWatch(
     double lat,
     double lng,
@@ -1068,54 +1078,46 @@ class FuelPriceService {
   ) async {
     try {
       final product = fuelType == 'diesel'
-          ? '4'
+          ? 'DSL'
           : fuelType == 'e10'
-              ? '5'
-              : '1';
+              ? 'ULP'
+              : '98R';
       final uri = Uri.parse(
-        'https://www.fuelwatch.wa.gov.au/fuelwatch/rss?Product=$product',
+        'https://www.fuelwatch.wa.gov.au/api/sites?fuelType=$product',
       );
       final response = await http
-          .get(uri, headers: {'User-Agent': _userAgent})
+          .get(uri, headers: {'Accept': 'application/json', 'User-Agent': _userAgent})
           .timeout(_timeout);
       if (response.statusCode != 200) return [];
-      // Minimal RSS item scrape — soft-fail OK
-      final items = RegExp(
-        r'<item>(.*?)</item>',
-        dotAll: true,
-      ).allMatches(response.body);
+      final data = json.decode(response.body);
+      if (data is! List) return [];
       final out = <Map<String, dynamic>>[];
-      for (final m in items) {
-        final item = m.group(1) ?? '';
-        String tag(String name) {
-          final mm = RegExp('<$name>(.*?)</$name>', dotAll: true)
-              .firstMatch(item);
-          return mm?.group(1)?.trim() ?? '';
-        }
-
-        final title = tag('title');
-        final priceStr = tag('description');
-        final priceMatch =
-            RegExp(r'([\d.]+)').firstMatch(priceStr);
-        final price = double.tryParse(priceMatch?.group(1) ?? '');
-        if (price == null || price <= 0) continue;
-        // FuelWatch RSS lacks precise coords; pin near Perth CBD with tiny jitter skip
-        final sLat = -31.9505;
-        final sLng = 115.8605;
+      for (final s in data) {
+        if (s is! Map) continue;
+        final address = s['address'];
+        if (address is! Map) continue;
+        final sLat = (address['latitude'] as num?)?.toDouble();
+        final sLng = (address['longitude'] as num?)?.toDouble();
+        if (sLat == null || sLng == null) continue;
         final dist = haversineKm(lat, lng, sLat, sLng);
-        if (dist > radiusKm + 50) continue;
-        final normalized = price > 20 ? price / 100.0 : price;
+        if (dist > radiusKm) continue;
+        final productData = s['product'];
+        final priceCents = productData is Map
+            ? (productData['priceToday'] as num?)?.toDouble()
+            : null;
+        if (priceCents == null || priceCents <= 0) continue;
         out.add(_station(
-          id: 'wa_${title.hashCode}',
-          name: title.isEmpty ? 'FuelWatch' : title,
-          brand: 'FuelWatch WA',
-          street: tag('address'),
-          place: 'WA',
+          id: s['id']?.toString() ?? '${sLat}_$sLng',
+          name: s['siteName']?.toString() ?? 'Station',
+          brand: s['brandName']?.toString() ?? 'FuelWatch WA',
+          street: address['line1']?.toString() ?? '',
+          place: address['location']?.toString() ?? '',
           houseNumber: '',
           lat: sLat,
           lng: sLng,
           dist: dist,
-          price: normalized,
+          price: priceCents / 100.0,
+          isOpen: s['isClosedNow'] != true,
         ));
       }
       return _sortAndCap(out, limit: 40);
@@ -1132,9 +1134,14 @@ class FuelPriceService {
     String fuelType,
   ) async {
     try {
+      // شناسه‌های DGEG (https://precoscombustiveis.dgeg.gov.pt) — از
+      // GetTiposCombustiveis گرفته شده: 2101=Gasóleo simples، 3201=Gasolina
+      // simples 95 (e10 در این اپ)، 3400=Gasolina 98 (e5 در این اپ). قبلاً e5
+      // هم به 3201 می‌رفت و قیمت بنزین معمولی به‌جای ۹۸ نشان داده می‌شد.
       final fuelId = switch (fuelType) {
         'diesel' => '2101',
         'e10' => '3201',
+        'e5' => '3400',
         _ => '3201',
       };
       final now = DateTime.now();

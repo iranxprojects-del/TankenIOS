@@ -21,7 +21,52 @@ const Map<String, Map<String, String>> localizedStrings = {
     'uk': 'Розумне паливо та сервіс',
     'ro': 'Combustibil și serviciu inteligent',
     'pl': 'Inteligentne paliwo i serwis',
-  },'free_tier_expired': {
+  },
+  'onboard_select_fuel': {
+    'en': 'Select your fuel type',
+    'de': 'Wählen Sie Ihre Kraftstoffart',
+    'fa': 'لطفاً نوع سوخت خود را انتخاب کنید',
+    'tr': 'Yakıt türünüzü seçin',
+    'ru': 'Выберите тип топлива',
+    'ar': 'اختر نوع الوقود الخاص بك',
+    'uk': 'Виберіть тип пального',
+    'ro': 'Selectați tipul de combustibil',
+    'pl': 'Wybierz rodzaj paliwa',
+  },
+  'onboard_tap_location': {
+    'en': 'Now tap here to find your current location',
+    'de': 'Tippen Sie jetzt hier, um Ihren aktuellen Standort zu finden',
+    'fa': 'حالا روی اینجا کلیک کنید تا موقعیت فعلی شما پیدا شود',
+    'tr': 'Şimdi mevcut konumunuzu bulmak için buraya dokunun',
+    'ru': 'Теперь нажмите здесь, чтобы найти своё текущее местоположение',
+    'ar': 'انقر هنا الآن للعثور على موقعك الحالي',
+    'uk': 'Тепер натисніть тут, щоб знайти своє поточне місцезнаходження',
+    'ro': 'Acum atingeți aici pentru a găsi locația dvs. curentă',
+    'pl': 'Teraz dotknij tutaj, aby znaleźć swoją bieżącą lokalizację',
+  },
+  'onboard_loading_stations': {
+    'en': 'Please wait, loading nearby stations…',
+    'de': 'Bitte warten, Tankstellen in der Nähe werden geladen…',
+    'fa': 'لطفاً کمی صبر کنید تا پمپ‌بنزین‌های نزدیک بارگذاری شوند…',
+    'tr': 'Lütfen bekleyin, yakındaki istasyonlar yükleniyor…',
+    'ru': 'Пожалуйста, подождите, идёт загрузка ближайших заправок…',
+    'ar': 'يرجى الانتظار، جارٍ تحميل محطات الوقود القريبة…',
+    'uk': 'Будь ласка, зачекайте, завантажуються найближчі заправки…',
+    'ro': 'Vă rugăm așteptați, se încarcă stațiile din apropiere…',
+    'pl': 'Proszę czekać, trwa ładowanie pobliskich stacji…',
+  },
+  'onboard_select_cheapest': {
+    'en': 'This is the cheapest station nearby — tap it!',
+    'de': 'Dies ist die günstigste Tankstelle in der Nähe – tippen Sie darauf!',
+    'fa': 'این ارزان‌ترین پمپ بنزین نزدیک شماست — روی آن کلیک کنید!',
+    'tr': 'Bu yakındaki en ucuz istasyon — dokunun!',
+    'ru': 'Это самая дешёвая заправка поблизости — нажмите на неё!',
+    'ar': 'هذه أرخص محطة وقود قريبة منك — اضغط عليها!',
+    'uk': 'Це найдешевша заправка поблизу — натисніть на неї!',
+    'ro': 'Aceasta este cea mai ieftină stație din apropiere — atingeți-o!',
+    'pl': 'To najtańsza stacja w pobliżu — dotknij jej!',
+  },
+  'free_tier_expired': {
     'en': 'Free tier has expired',
     'de': 'Testphase abgelaufen',
     'fa': 'دوره رایگان تمام شده است',
@@ -158,6 +203,26 @@ const Map<String, Map<String, String>> localizedStrings = {
     'en': 'Date', 'de': 'Datum', 'fa': 'تاریخ', 'tr': 'Tarih',
     'ru': 'Дата', 'ar': 'التاريخ', 'uk': 'Дата', 'ro': 'Dată', 'pl': 'Data',
   },
+  'service_mileage_label': {
+    'en': 'Mileage at last service ({unit})', 'de': 'Kilometerstand beim letzten Service ({unit})', 'fa': 'کارکرد در آخرین سرویس ({unit})', 'tr': 'Son serviste kilometre ({unit})',
+    'ru': 'Пробег при последнем сервисе ({unit})', 'ar': 'المسافة عند آخر خدمة ({unit})', 'uk': 'Пробіг під час останнього сервісу ({unit})', 'ro': 'Kilometraj la ultimul service ({unit})', 'pl': 'Przebieg przy ostatnim serwisie ({unit})',
+  },
+  'last_service_date_label': {
+    'en': 'Last service date', 'de': 'Letztes Servicedatum', 'fa': 'تاریخ آخرین سرویس', 'tr': 'Son servis tarihi',
+    'ru': 'Дата последнего сервиса', 'ar': 'تاريخ آخر خدمة', 'uk': 'Дата останнього сервісу', 'ro': 'Data ultimului service', 'pl': 'Data ostatniego serwisu',
+  },
+  'no_date_set': {
+    'en': 'Not set', 'de': 'Nicht festgelegt', 'fa': 'ثبت نشده', 'tr': 'Belirlenmedi',
+    'ru': 'Не указано', 'ar': 'غير محدد', 'uk': 'Не вказано', 'ro': 'Nesetat', 'pl': 'Nie ustawiono',
+  },
+  'reminder_status_on': {
+    'en': 'Reminder on', 'de': 'Erinnerung an', 'fa': 'یادآور فعال', 'tr': 'Hatırlatıcı açık',
+    'ru': 'Напоминание включено', 'ar': 'التذكير مفعّل', 'uk': 'Нагадування увімкнено', 'ro': 'Memento activ', 'pl': 'Przypomnienie włączone',
+  },
+  'reminder_status_off': {
+    'en': 'Reminder off', 'de': 'Erinnerung aus', 'fa': 'یادآور خاموش', 'tr': 'Hatırlatıcı kapalı',
+    'ru': 'Напоминание выключено', 'ar': 'التذكير متوقف', 'uk': 'Нагадування вимкнено', 'ro': 'Memento oprit', 'pl': 'Przypomnienie wyłączone',
+  },
   'contact': {
     'en': 'Contact', 'de': 'Kontakt', 'fa': 'تماس', 'tr': 'İletişim',
     'ru': 'Контакт', 'ar': 'اتصال', 'uk': 'Контакт', 'ro': 'Contact', 'pl': 'Kontakt',
@@ -266,6 +331,18 @@ const Map<String, Map<String, String>> localizedStrings = {
     'en': '{val} km', 'de': '{val} km', 'fa': '{val} کیلومتر', 'tr': '{val} km',
     'ru': '{val} км', 'ar': '{val} كم', 'uk': '{val} км', 'ro': '{val} km', 'pl': '{val} km',
   },
+  'mile': {
+    'en': '{val} mi', 'de': '{val} mi', 'fa': '{val} مایل', 'tr': '{val} mil',
+    'ru': '{val} миль', 'ar': '{val} ميل', 'uk': '{val} миль', 'ro': '{val} mile', 'pl': '{val} mil',
+  },
+  'unit_km': {
+    'en': 'km', 'de': 'km', 'fa': 'کیلومتر', 'tr': 'km',
+    'ru': 'км', 'ar': 'كم', 'uk': 'км', 'ro': 'km', 'pl': 'km',
+  },
+  'unit_mile': {
+    'en': 'mi', 'de': 'mi', 'fa': 'مایل', 'tr': 'mil',
+    'ru': 'миль', 'ar': 'ميل', 'uk': 'миль', 'ro': 'mile', 'pl': 'mil',
+  },
   'fuel_diesel': {
     'en': 'Diesel', 'de': 'Diesel', 'fa': 'دیزل', 'tr': 'Dizel',
     'ru': 'Дизель', 'ar': 'ديزل', 'uk': 'Дизель', 'ro': 'Motorină', 'pl': 'Diesel',
@@ -299,8 +376,8 @@ const Map<String, Map<String, String>> localizedStrings = {
     'ru': 'Тип обслуживания', 'ar': 'نوع الخدمة', 'uk': 'Тип послуги', 'ro': 'Tip service', 'pl': 'Rodzaj usługi',
   },
   'current_mileage': {
-    'en': 'Current Mileage (Km)', 'de': 'Aktueller Kilometerstand (km)', 'fa': 'کارکرد فعلی (کیلومتر)', 'tr': 'Güncel Kilometre (km)',
-    'ru': 'Текущий пробег (км)', 'ar': 'المسافة الحالية (كم)', 'uk': 'Поточний пробіг (км)', 'ro': 'Kilometraj curent (Km)', 'pl': 'Aktualny przebieg (Km)',
+    'en': 'Current Mileage ({unit})', 'de': 'Aktueller Kilometerstand ({unit})', 'fa': 'کارکرد فعلی ({unit})', 'tr': 'Güncel Kilometre ({unit})',
+    'ru': 'Текущий пробег ({unit})', 'ar': 'المسافة الحالية ({unit})', 'uk': 'Поточний пробіг ({unit})', 'ro': 'Kilometraj curent ({unit})', 'pl': 'Aktualny przebieg ({unit})',
   },
   'vehicle_overview': {
     'en': 'Vehicle overview', 'de': 'Fahrzeugübersicht', 'fa': 'نمای کلی خودرو', 'tr': 'Araç genel bakışı',
@@ -614,6 +691,54 @@ const Map<String, Map<String, String>> localizedStrings = {
     'uk': 'Телефон страховки', 
     'ro': 'Telefon asigurare', 
     'pl': 'Telefon do ubezpieczenia',
+  },
+  'insurance_company': {
+    'en': 'Insurance company', 'de': 'Versicherungsgesellschaft', 'fa': 'نام شرکت بیمه', 'tr': 'Sigorta şirketi',
+    'ru': 'Страховая компания', 'ar': 'شركة التأمين', 'uk': 'Страхова компанія', 'ro': 'Companie de asigurări', 'pl': 'Firma ubezpieczeniowa',
+  },
+  'workshop_name': {
+    'en': 'Repair shop name', 'de': 'Name der Werkstatt', 'fa': 'نام تعمیرگاه', 'tr': 'Tamirhane adı',
+    'ru': 'Название мастерской', 'ar': 'اسم ورشة التصليح', 'uk': 'Назва майстерні', 'ro': 'Numele atelierului', 'pl': 'Nazwa warsztatu',
+  },
+  'pick_from_contacts': {
+    'en': 'Pick from contacts', 'de': 'Aus Kontakten wählen', 'fa': 'انتخاب از دفترچه تلفن', 'tr': 'Rehberden seç',
+    'ru': 'Выбрать из контактов', 'ar': 'اختر من جهات الاتصال', 'uk': 'Обрати з контактів', 'ro': 'Alege din contacte', 'pl': 'Wybierz z kontaktów',
+  },
+  'contact_no_phone': {
+    'en': 'That contact has no phone number.', 'de': 'Dieser Kontakt hat keine Telefonnummer.', 'fa': 'این مخاطب شماره تلفنی ندارد.', 'tr': 'Bu kişide telefon numarası yok.',
+    'ru': 'У этого контакта нет номера телефона.', 'ar': 'لا يحتوي جهة الاتصال هذه على رقم هاتف.', 'uk': 'Цей контакт не має номера телефону.', 'ro': 'Acest contact nu are număr de telefon.', 'pl': 'Ten kontakt nie ma numeru telefonu.',
+  },
+  'contacts_permission_denied': {
+    'en': 'Contacts access was denied, so nothing could be picked.', 'de': 'Zugriff auf Kontakte verweigert, es konnte nichts ausgewählt werden.', 'fa': 'دسترسی به دفترچه تلفن داده نشد، پس چیزی انتخاب نشد.', 'tr': 'Kişilere erişim reddedildi, bu yüzden seçim yapılamadı.',
+    'ru': 'Доступ к контактам запрещён, выбрать ничего не удалось.', 'ar': 'تم رفض الوصول إلى جهات الاتصال، لذا لم يتم اختيار شيء.', 'uk': 'Доступ до контактів заборонено, нічого не вибрано.', 'ro': 'Accesul la contacte a fost refuzat, nu s-a putut selecta nimic.', 'pl': 'Odmówiono dostępu do kontaktów, nic nie wybrano.',
+  },
+  'contact_pick_failed': {
+    'en': 'Could not open contacts. You can type the number instead.', 'de': 'Kontakte konnten nicht geöffnet werden. Sie können die Nummer stattdessen eingeben.', 'fa': 'باز کردن دفترچه تلفن ممکن نشد. می‌تونی شماره رو دستی تایپ کنی.', 'tr': 'Kişiler açılamadı. Numarayı elle yazabilirsiniz.',
+    'ru': 'Не удалось открыть контакты. Введите номер вручную.', 'ar': 'تعذر فتح جهات الاتصال. يمكنك كتابة الرقم يدويًا.', 'uk': 'Не вдалося відкрити контакти. Введіть номер вручну.', 'ro': 'Nu s-au putut deschide contactele. Puteți introduce numărul manual.', 'pl': 'Nie udało się otworzyć kontaktów. Możesz wpisać numer ręcznie.',
+  },
+  'vehicle_info_section': {
+    'en': 'Vehicle', 'de': 'Fahrzeug', 'fa': 'اطلاعات خودرو', 'tr': 'Araç',
+    'ru': 'Автомобиль', 'ar': 'المركبة', 'uk': 'Автомобіль', 'ro': 'Vehicul', 'pl': 'Pojazd',
+  },
+  'contacts_section': {
+    'en': 'Contacts', 'de': 'Kontakte', 'fa': 'اطلاعات تماس', 'tr': 'Kişiler',
+    'ru': 'Контакты', 'ar': 'جهات الاتصال', 'uk': 'Контакти', 'ro': 'Contacte', 'pl': 'Kontakty',
+  },
+  'car_model_hint': {
+    'en': 'e.g. Mercedes G-Class', 'de': 'z. B. Mercedes G-Klasse', 'fa': 'مثال: Mercedes G-Class', 'tr': 'ör. Mercedes G-Class',
+    'ru': 'напр. Mercedes G-Class', 'ar': 'مثال: Mercedes G-Class', 'uk': 'напр. Mercedes G-Class', 'ro': 'ex. Mercedes G-Class', 'pl': 'np. Mercedes G-Class',
+  },
+  'add_car_model': {
+    'en': 'Add car model', 'de': 'Automodell hinzufügen', 'fa': 'افزودن مدل خودرو', 'tr': 'Araç modeli ekle',
+    'ru': 'Добавить модель авто', 'ar': 'إضافة موديل السيارة', 'uk': 'Додати модель авто', 'ro': 'Adaugă model auto', 'pl': 'Dodaj model samochodu',
+  },
+  'add_insurance_phone': {
+    'en': 'Add insurance phone', 'de': 'Versicherungstelefon hinzufügen', 'fa': 'افزودن تلفن بیمه', 'tr': 'Sigorta telefonu ekle',
+    'ru': 'Добавить телефон страховой', 'ar': 'إضافة هاتف التأمين', 'uk': 'Додати телефон страховки', 'ro': 'Adaugă telefon asigurare', 'pl': 'Dodaj telefon do ubezpieczenia',
+  },
+  'add_workshop_info': {
+    'en': 'Add repair shop info', 'de': 'Werkstattinfo hinzufügen', 'fa': 'افزودن اطلاعات تعمیرگاه', 'tr': 'Tamirhane bilgisi ekle',
+    'ru': 'Добавить данные мастерской', 'ar': 'إضافة معلومات ورشة التصليح', 'uk': 'Додати дані майстерні', 'ro': 'Adaugă date atelier', 'pl': 'Dodaj dane warsztatu',
   },
   'move_up': {
     'en': 'Move up', 'de': 'Nach oben', 'fa': 'انتقال به بالا', 'tr': 'Yukarı taşı',
@@ -1028,9 +1153,9 @@ const Map<String, Map<String, String>> localizedStrings = {
     'ru': 'Неверный пробег', 'ar': 'كيلومتر غير صالح', 'uk': 'Невірний пробіг', 'ro': 'Kilometraj invalid', 'pl': 'Nieprawidłowy przebieg',
   },
   'km_error_body': {
-    'en': 'The entered mileage ({entered}) cannot be higher than the current car mileage ({current}).',
+    'en': 'The entered mileage ({entered} {unit}) cannot be higher than the current car mileage ({current} {unit}).',
     'de': 'Der eingegebene Stand ({entered}) darf nicht höher sein als der aktuelle Kilometerstand ({current}).',
-    'fa': 'کیلومتر وارد شده ({entered}) نمی‌تواند بیشتر از کیلومتر فعلی ماشین ({current}) باشد!',
+    'fa': 'مقدار وارد شده ({entered} {unit}) نمی‌تواند بیشتر از کارکرد فعلی ماشین ({current} {unit}) باشد!',
     'tr': 'Girilen kilometre ({entered}), mevcut araç kilometresinden ({current}) büyük olamaz.',
     'ru': 'Введённый пробег ({entered}) не может быть больше текущего ({current}).',
     'ar': 'لا يمكن أن يكون الكيلومتر المدخل ({entered}) أكبر من كيلومتر السيارة الحالي ({current}).',
@@ -1061,9 +1186,9 @@ const Map<String, Map<String, String>> localizedStrings = {
     'pl': 'Ostrzeżenie: duża różnica przebiegu',
   },
   'km_diff_body': {
-    'en': 'The value ({entered}) differs from the current mileage ({current}) by more than 30,000 km. Are you sure?',
+    'en': 'The value ({entered} {unit}) differs from the current mileage ({current} {unit}) by more than {threshold} {unit}. Are you sure?',
     'de': 'Der Wert ({entered}) weicht vom aktuellen Stand ({current}) um mehr als 30.000 km ab. Sind Sie sicher?',
-    'fa': 'مقدار وارد شده ({entered}) با کیلومتر فعلی ماشین ({current}) بیش از ۳۰,۰۰۰ کیلومتر اختلاف دارد. آیا مطمئن هستید؟',
+    'fa': 'مقدار وارد شده ({entered} {unit}) با کارکرد فعلی ماشین ({current} {unit}) بیش از {threshold} {unit} اختلاف دارد. آیا مطمئن هستید؟',
     'tr': 'Girilen değer ({entered}), mevcut kilometreden ({current}) 30.000 km’den fazla farklı. Emin misiniz?',
     'ru': 'Значение ({entered}) отличается от текущего пробега ({current}) более чем на 30 000 км. Вы уверены?',
     'ar': 'القيمة ({entered}) تختلف عن الكيلومتر الحالي ({current}) بأكثر من 30,000 كم. هل أنت متأكد؟',
@@ -1105,9 +1230,9 @@ const Map<String, Map<String, String>> localizedStrings = {
     'pl': 'Brak aktualnego przebiegu',
   },
   'km_missing_body': {
-    'en': 'Please enter the current car mileage at the top of the page first.',
+    'en': 'Please enter the current car mileage ({unit}) at the top of the page first.',
     'de': 'Bitte tragen Sie zuerst den aktuellen Kilometerstand oben auf der Seite ein.',
-    'fa': 'لطفا ابتدا "کیلومتر فعلی" ماشین را در بالای صفحه وارد کنید.',
+    'fa': 'لطفا ابتدا «کارکرد فعلی» ماشین را (بر حسب {unit}) در بالای صفحه وارد کنید.',
     'tr': 'Lütfen önce sayfanın üstüne güncel araç kilometresini girin.',
     'ru': 'Сначала укажите текущий пробег автомобиля вверху страницы.',
     'ar': 'يرجى إدخال كيلومتر السيارة الحالي أعلى الصفحة أولاً.',
@@ -1127,9 +1252,9 @@ const Map<String, Map<String, String>> localizedStrings = {
     'pl': 'Rozumiem',
   },
   'km_enter_current_first': {
-    'en': 'Enter the current mileage at the top of the page first.',
+    'en': 'Enter the current mileage ({unit}) at the top of the page first.',
     'de': 'Bitte zuerst den aktuellen Kilometerstand oben eingeben.',
-    'fa': 'ابتدا کیلومتر فعلی را در بالای صفحه وارد کنید.',
+    'fa': 'ابتدا کارکرد فعلی (بر حسب {unit}) را در بالای صفحه وارد کنید.',
     'tr': 'Önce sayfanın üstüne güncel kilometreyi girin.',
     'ru': 'Сначала укажите текущий пробег вверху страницы.',
     'ar': 'أدخل الكيلومتر الحالي أعلى الصفحة أولاً.',
@@ -1160,9 +1285,9 @@ const Map<String, Map<String, String>> localizedStrings = {
     'pl': 'Najpierw ustaw datę poprzedniego serwisu, potem włącz alarm.',
   },
   'reminder_interval_km': {
-    'en': 'Service interval (km)',
+    'en': 'Service interval ({unit})',
     'de': 'Serviceintervall (km)',
-    'fa': 'فاصله تعویض/سرویس (کیلومتر)',
+    'fa': 'فاصله تعویض/سرویس ({unit})',
     'tr': 'Servis aralığı (km)',
     'ru': 'Интервал сервиса (км)',
     'ar': 'فترة الخدمة (كم)',
@@ -1744,67 +1869,103 @@ const Map<String, Map<String, String>> localizedStrings = {
   },
   'deals_premium_desc': {
     'en':
-        'Four real ways to pay less at the pump — preview for everyone, full access with Premium.',
+        'Practical ways to pay less at the pump that are available in your country. Premium unlocks the full list with step-by-step instructions.',
     'de':
-        'Vier echte Wege, an der Zapfsäule weniger zu zahlen — Vorschau für alle, voller Zugang mit Premium.',
+        'Praktische Wege, an der Zapfsäule weniger zu zahlen – passend zu deinem Land. Premium schaltet die komplette Liste mit Schritt-für-Schritt-Anleitung frei.',
     'fa':
-        'چهار راه واقعی برای کمتر پرداخت کردن سر پمپ — برای همه نمایش داده می‌شود، با پرمیوم کامل باز می‌شود.',
+        'راه‌های عملی برای کمتر پرداخت کردن سر پمپ که در کشور تو در دسترس است. پرمیوم لیست کامل را همراه با راهنمای قدم‌به‌قدم باز می‌کند.',
     'tr':
-        'Pompadan daha az ödemenin dört yolu — herkese önizleme, Premium ile tam erişim.',
+        'Ülkende geçerli, pompada daha az ödemenin pratik yolları. Premium, adım adım talimatlarla tam listeyi açar.',
     'ru':
-        'Четыре реальных способа платить меньше на АЗС — превью всем, полный доступ с Premium.',
+        'Практичные способы платить меньше на АЗС, доступные в вашей стране. Premium открывает полный список с пошаговыми инструкциями.',
     'ar':
-        'أربع طرق حقيقية لدفع أقل عند المضخة — معاينة للجميع، وفتح كامل مع النسخة المميزة.',
+        'طرق عملية لدفع أقل عند المضخة متاحة في بلدك. النسخة المميزة تفتح القائمة الكاملة مع تعليمات خطوة بخطوة.',
     'uk':
-        'Чотири реальні способи платити менше на АЗС — превʼю всім, повний доступ з Premium.',
+        'Практичні способи платити менше на АЗС, доступні у вашій країні. Premium відкриває повний список із покроковими інструкціями.',
     'ro':
-        'Patru moduri reale să plătești mai puțin la pompă — previzualizare pentru toți, acces complet cu Premium.',
+        'Modalități practice de a plăti mai puțin la pompă, disponibile în țara ta. Premium deblochează lista completă cu instrucțiuni pas cu pas.',
     'pl':
-        'Cztery realne sposoby, by płacić mniej na stacji — podgląd dla wszystkich, pełny dostęp z Premium.',
+        'Praktyczne sposoby, by płacić mniej na stacji, dostępne w Twoim kraju. Premium odblokowuje pełną listę z instrukcjami krok po kroku.',
   },
   'deals_premium_b1': {
-    'en': 'Loyalty rewards — gifts & discounts up to €10 per fill',
-    'de': 'Treue-Vorteile — Geschenke & Rabatte bis zu 10 € pro Tankung',
-    'fa': 'جایزه و تخفیف کارت وفاداری — تا ۱۰ یورو هدیه در هر سوخت‌گیری',
-    'tr': 'Sadakat ödülleri — dolum başına 10 €’ya kadar hediye/indirim',
-    'ru': 'Бонусы лояльности — подарки и скидки до €10 за заправку',
-    'ar': 'مكافآت الولاء — هدايا وخصومات حتى 10 يورو لكل تعبئة',
-    'uk': 'Бонуси лояльності — подарунки та знижки до €10 за заправку',
-    'ro': 'Recompense de loialitate — cadouri și reduceri până la 10 €',
-    'pl': 'Nagrody lojalnościowe — prezenty i zniżki do 10 € za tankowanie',
+    'en':
+        'Loyalty programs at partner stations — collect points and use fuel coupons',
+    'de':
+        'Treueprogramme an Partner-Tankstellen – Punkte sammeln und Tank-Coupons nutzen',
+    'fa':
+        'برنامه‌های وفاداری پمپ‌بنزین‌ها — امتیاز جمع کن و از کوپن‌های سوخت استفاده کن',
+    'tr':
+        'Anlaşmalı istasyonlarda sadakat programları — puan topla, yakıt kuponlarını kullan',
+    'ru':
+        'Программы лояльности на АЗС-партнёрах — копите баллы и используйте купоны на топливо',
+    'ar':
+        'برامج الولاء في المحطات الشريكة — اجمع النقاط واستخدم كوبونات الوقود',
+    'uk':
+        'Програми лояльності на АЗС-партнерах — збирайте бали та використовуйте купони на пальне',
+    'ro':
+        'Programe de loialitate la benzinăriile partenere — strânge puncte și folosește cupoane de carburant',
+    'pl':
+        'Programy lojalnościowe na stacjach partnerskich — zbieraj punkty i korzystaj z kuponów na paliwo',
   },
   'deals_premium_b2': {
-    'en': 'Pay from your phone at the pump — up to €5 off your first fill',
-    'de': 'Vom Handy an der Säule zahlen — bis zu 5 € auf die erste Tankung',
-    'fa': 'پرداخت از موبایل سر پمپ — تا ۵ یورو تخفیف اولین سوخت‌گیری',
-    'tr': 'Telefondan pompa ödemesi — ilk dolumda 5 €’ya kadar indirim',
-    'ru': 'Оплата с телефона у колонки — до €5 на первую заправку',
-    'ar': 'ادفع من هاتفك عند المضخة — خصم حتى 5 يورو على أول تعبئة',
-    'uk': 'Оплата з телефону біля колонки — до €5 на першу заправку',
-    'ro': 'Plătești din telefon la pompă — până la 5 € la prima alimentare',
-    'pl': 'Płatność telefonem przy dystrybutorze — do 5 € na pierwsze tankowanie',
+    'en':
+        'Pay-at-pump apps — pay from your phone; the apps sometimes run offers for new users',
+    'de':
+        'Bezahl-Apps an der Zapfsäule – per Handy zahlen; die Apps haben gelegentlich Angebote für Neukunden',
+    'fa':
+        'اپ‌های پرداخت سر پمپ — پرداخت با موبایل؛ این اپ‌ها گاهی برای کاربران جدید پیشنهاد ویژه دارند',
+    'tr':
+        'Pompada ödeme uygulamaları — telefonla öde; uygulamalar zaman zaman yeni kullanıcılara kampanya sunar',
+    'ru':
+        'Приложения для оплаты у колонки — платите с телефона; иногда в них бывают акции для новых пользователей',
+    'ar':
+        'تطبيقات الدفع عند المضخة — ادفع من هاتفك؛ وأحياناً تقدم هذه التطبيقات عروضاً للمستخدمين الجدد',
+    'uk':
+        'Застосунки для оплати біля колонки — платіть із телефона; іноді в них бувають акції для нових користувачів',
+    'ro':
+        'Aplicații de plată la pompă — plătești din telefon; uneori au oferte pentru utilizatorii noi',
+    'pl':
+        'Aplikacje do płacenia przy dystrybutorze — płać telefonem; czasem mają oferty dla nowych użytkowników',
   },
   'deals_premium_b3': {
-    'en': 'Know the cheapest hour — often save several euros on a 50 L tank',
-    'de': 'Günstigste Uhrzeit kennen — oft mehrere Euro auf 50 L sparen',
-    'fa': 'بهترین ساعت سوخت‌گیری را بدان — روی ۵۰ لیتر چند یورو واقعی کمتر بده',
-    'tr': 'En ucuz saati öğren — 50 litrede birkaç euro tasarruf',
-    'ru': 'Узнайте самый дешёвый час — часто экономия в несколько евро на 50 л',
-    'ar': 'اعرف أرخص ساعة للتزود — غالباً توفير عدة يوروات على 50 لتراً',
-    'uk': 'Дізнайтеся найдешевшу годину — часто економія кілька євро на 50 л',
-    'ro': 'Află ora cea mai ieftină — deseori economisești câțiva euro pe 50 L',
-    'pl': 'Poznaj najtańszą godzinę — często kilka euro oszczędności na 50 L',
+    'en':
+        'Best time of day to fill up (Germany) — an estimate based on the usual evening price drop',
+    'de':
+        'Beste Tankzeit (Deutschland) – Schätzung auf Basis des üblichen Preisrückgangs am Abend',
+    'fa':
+        'بهترین ساعت سوخت‌گیری (آلمان) — تخمینی بر اساس افت معمول قیمت در عصر',
+    'tr':
+        'Yakıt almak için en iyi saat (Almanya) — akşamları görülen olağan fiyat düşüşüne dayalı tahmin',
+    'ru':
+        'Лучшее время для заправки (Германия) — оценка на основе обычного вечернего снижения цен',
+    'ar':
+        'أفضل وقت للتزود بالوقود (ألمانيا) — تقدير مبني على الانخفاض المعتاد للأسعار مساءً',
+    'uk':
+        'Найкращий час для заправки (Німеччина) — оцінка на основі звичного вечірнього зниження цін',
+    'ro':
+        'Cea mai bună oră de alimentare (Germania) — estimare pe baza scăderii obișnuite a prețurilor seara',
+    'pl':
+        'Najlepsza pora na tankowanie (Niemcy) — szacunek oparty na typowym wieczornym spadku cen',
   },
   'deals_premium_b4': {
-    'en': 'Live local deals shared by drivers near you — hours-only flash savings',
-    'de': 'Lokale Blitz-Deals von Fahrern in deiner Nähe — nur für wenige Stunden',
-    'fa': 'تخفیف‌های لحظه‌ای نزدیک تو که راننده‌ها همین الان ثبت می‌کنند',
-    'tr': 'Yakınındaki sürücülerin paylaştığı anlık yerel indirimler',
-    'ru': 'Мгновенные местные скидки от водителей рядом с вами',
-    'ar': 'عروض محلية فورية يشاركها السائقون قربك',
-    'uk': 'Миттєві місцеві знижки від водіїв поруч',
-    'ro': 'Oferte locale live de la șoferii din apropiere',
-    'pl': 'Lokalne okazje na żywo od kierowców w pobliżu',
+    'en':
+        'Deals shared by other drivers nearby — with directions to the station',
+    'de':
+        'Von anderen Fahrern geteilte Angebote in der Nähe – mit Route zur Tankstelle',
+    'fa':
+        'تخفیف‌هایی که راننده‌های دیگر در نزدیکی تو ثبت کرده‌اند — با مسیریابی تا پمپ',
+    'tr':
+        'Yakındaki diğer sürücülerin paylaştığı fırsatlar — istasyona yol tarifiyle',
+    'ru':
+        'Скидки рядом, которыми поделились другие водители, — с маршрутом до АЗС',
+    'ar':
+        'عروض قريبة يشاركها سائقون آخرون — مع الاتجاهات إلى المحطة',
+    'uk':
+        'Знижки поруч, якими поділилися інші водії, — з маршрутом до АЗС',
+    'ro':
+        'Oferte din apropiere distribuite de alți șoferi — cu traseu până la benzinărie',
+    'pl':
+        'Okazje w pobliżu udostępnione przez innych kierowców — z nawigacją do stacji',
   },
   'deals_title': {
     'en': 'Coupons & savings',
@@ -1886,7 +2047,7 @@ const Map<String, Map<String, String>> localizedStrings = {
   'deals_empty_crowd': {
     'en': 'No live local deals yet — be the first to share one.',
     'de': 'Noch keine lokalen Deals — teile den ersten.',
-    'fa': 'هنوز تخفیف محلی ثبت نشده — اولین نفر باش که Share می‌کند.',
+    'fa': 'هنوز تخفیف محلی ثبت نشده — اولین نفری باش که ثبت می‌کند.',
     'tr': 'Henüz yerel fırsat yok — ilk paylaşan sen ol.',
     'ru': 'Пока нет местных скидок — поделитесь первой.',
     'ar': 'لا عروض محلية بعد — كن أول من يشارك.',
@@ -1927,23 +2088,23 @@ const Map<String, Map<String, String>> localizedStrings = {
   },
   'deal_payback_detail': {
     'en':
-        '{network} multi-point coupons (e.g. 5×/10×) at {brand} often equal ~{cents} ¢/L. Check the Payback app for today’s active codes.',
+        'Collect {network} rewards when you fuel at {brand}. Current coupons and offers change regularly — check them in the app before fueling.',
     'de':
-        '{network}-Mehrfachpunkte (z. B. 5×/10×) bei {brand} entsprechen oft ~{cents} ct/L. Aktuelle Codes in der Payback-App prüfen.',
+        'Sammle {network}-Vorteile beim Tanken bei {brand}. Aktuelle Coupons und Angebote wechseln regelmäßig – prüfe sie vor dem Tanken in der App.',
     'fa':
-        'کوپن‌های چندبرابر {network} (مثل ۵×/۱۰×) در {brand} معمولاً حدود {cents} سنت در لیتر می‌ارزند. کدهای روز را در اپ Payback ببین.',
+        'هنگام سوخت‌گیری در {brand} امتیاز/پاداش {network} بگیر. کوپن‌ها و پیشنهادهای فعلی مرتب عوض می‌شوند — قبل از سوخت‌گیری در اپ چک کن.',
     'tr':
-        '{brand} konumunda {network} çoklu puan (~{cents} ct/L). Güncel kodlar için Payback uygulamasına bakın.',
+        '{brand} istasyonlarında yakıt alırken {network} ödülleri kazan. Güncel kuponlar ve teklifler düzenli değişir — yakıt almadan önce uygulamadan kontrol et.',
     'ru':
-        'Множители {network} на {brand} ≈ {cents} ¢/л. Актуальные коды — в приложении Payback.',
+        'Получайте бонусы {network} при заправке на {brand}. Актуальные купоны и предложения регулярно меняются — проверяйте их в приложении перед заправкой.',
     'ar':
-        'نقاط {network} المضاعفة في {brand} ≈ {cents} سنت/لتر. تحقق من التطبيق.',
+        'احصل على مكافآت {network} عند التزود بالوقود في {brand}. الكوبونات والعروض الحالية تتغير باستمرار — تحقق منها في التطبيق قبل التزود.',
     'uk':
-        'Множники {network} на {brand} ≈ {cents} ¢/л. Актуальні коди — в додатку Payback.',
+        'Отримуйте бонуси {network} під час заправки на {brand}. Актуальні купони й пропозиції регулярно змінюються — перевіряйте їх у застосунку перед заправкою.',
     'ro':
-        'Puncte multiple {network} la {brand} ≈ {cents} ct/L. Verifică în app Payback.',
+        'Primești recompense {network} când alimentezi la {brand}. Cupoanele și ofertele curente se schimbă des — verifică-le în aplicație înainte de alimentare.',
     'pl':
-        'Punkty {network} x na {brand} ≈ {cents} ct/L. Sprawdź kody w aplikacji Payback.',
+        'Zbieraj nagrody {network} podczas tankowania na {brand}. Aktualne kupony i oferty regularnie się zmieniają — sprawdź je w aplikacji przed tankowaniem.',
   },
   'deal_deutschlandcard_title': {
     'en': 'DeutschlandCard at Esso',
@@ -1958,23 +2119,23 @@ const Map<String, Map<String, String>> localizedStrings = {
   },
   'deal_deutschlandcard_detail': {
     'en':
-        '{network} bonus points at {brand} ≈ {cents} ¢/L equivalent. Open DeutschlandCard for live offers.',
+        'Collect {network} rewards when you fuel at {brand}. Current coupons and offers change regularly — check them in the app before fueling.',
     'de':
-        '{network}-Bonuspunkte bei {brand} ≈ {cents} ct/L. Aktuelle Angebote in der DeutschlandCard-App.',
+        'Sammle {network}-Vorteile beim Tanken bei {brand}. Aktuelle Coupons und Angebote wechseln regelmäßig – prüfe sie vor dem Tanken in der App.',
     'fa':
-        'امتیازهای اضافی {network} در {brand} حدود {cents} سنت/لیتر. پیشنهادهای روز را در اپ DeutschlandCard ببین.',
+        'هنگام سوخت‌گیری در {brand} امتیاز/پاداش {network} بگیر. کوپن‌ها و پیشنهادهای فعلی مرتب عوض می‌شوند — قبل از سوخت‌گیری در اپ چک کن.',
     'tr':
-        '{brand}’da {network} bonus ≈ {cents} ct/L. Güncel teklifler uygulamada.',
+        '{brand} istasyonlarında yakıt alırken {network} ödülleri kazan. Güncel kuponlar ve teklifler düzenli değişir — yakıt almadan önce uygulamadan kontrol et.',
     'ru':
-        'Бонусы {network} на {brand} ≈ {cents} ¢/л. Актуальные акции в приложении.',
+        'Получайте бонусы {network} при заправке на {brand}. Актуальные купоны и предложения регулярно меняются — проверяйте их в приложении перед заправкой.',
     'ar':
-        'بونص {network} في {brand} ≈ {cents} سنت/لتر. تحقق من التطبيق.',
+        'احصل على مكافآت {network} عند التزود بالوقود في {brand}. الكوبونات والعروض الحالية تتغير باستمرار — تحقق منها في التطبيق قبل التزود.',
     'uk':
-        'Бонуси {network} на {brand} ≈ {cents} ¢/л. Актуальні акції в додатку.',
+        'Отримуйте бонуси {network} під час заправки на {brand}. Актуальні купони й пропозиції регулярно змінюються — перевіряйте їх у застосунку перед заправкою.',
     'ro':
-        'Bonus {network} la {brand} ≈ {cents} ct/L. Verifică în aplicație.',
+        'Primești recompense {network} când alimentezi la {brand}. Cupoanele și ofertele curente se schimbă des — verifică-le în aplicație înainte de alimentare.',
     'pl':
-        'Bonus {network} na {brand} ≈ {cents} ct/L. Sprawdź w aplikacji.',
+        'Zbieraj nagrody {network} podczas tankowania na {brand}. Aktualne kupony i oferty regularnie się zmieniają — sprawdź je w aplikacji przed tankowaniem.',
   },
   'deal_shell_title': {
     'en': 'Shell ClubSmart boost',
@@ -1989,23 +2150,23 @@ const Map<String, Map<String, String>> localizedStrings = {
   },
   'deal_shell_detail': {
     'en':
-        '{network} boost weeks ≈ {cents} ¢/L at {brand}. Check ClubSmart for the current multiplier.',
+        'Collect {network} rewards when you fuel at {brand}. Current coupons and offers change regularly — check them in the app before fueling.',
     'de':
-        '{network}-Aktionswochen ≈ {cents} ct/L bei {brand}. Aktuellen Multiplikator in ClubSmart prüfen.',
+        'Sammle {network}-Vorteile beim Tanken bei {brand}. Aktuelle Coupons und Angebote wechseln regelmäßig – prüfe sie vor dem Tanken in der App.',
     'fa':
-        'هفته‌های تقویتی {network} در {brand} حدود {cents} سنت/لیتر. ضریب روز را در ClubSmart چک کن.',
+        'هنگام سوخت‌گیری در {brand} امتیاز/پاداش {network} بگیر. کوپن‌ها و پیشنهادهای فعلی مرتب عوض می‌شوند — قبل از سوخت‌گیری در اپ چک کن.',
     'tr':
-        '{brand}’da {network} ≈ {cents} ct/L. Güncel çarpanı ClubSmart’ta görün.',
+        '{brand} istasyonlarında yakıt alırken {network} ödülleri kazan. Güncel kuponlar ve teklifler düzenli değişir — yakıt almadan önce uygulamadan kontrol et.',
     'ru':
-        'Акции {network} на {brand} ≈ {cents} ¢/л. Множитель — в ClubSmart.',
+        'Получайте бонусы {network} при заправке на {brand}. Актуальные купоны и предложения регулярно меняются — проверяйте их в приложении перед заправкой.',
     'ar':
-        'تعزيز {network} في {brand} ≈ {cents} سنت/لتر. تحقق من ClubSmart.',
+        'احصل على مكافآت {network} عند التزود بالوقود في {brand}. الكوبونات والعروض الحالية تتغير باستمرار — تحقق منها في التطبيق قبل التزود.',
     'uk':
-        'Акції {network} на {brand} ≈ {cents} ¢/л. Множник — у ClubSmart.',
+        'Отримуйте бонуси {network} під час заправки на {brand}. Актуальні купони й пропозиції регулярно змінюються — перевіряйте їх у застосунку перед заправкою.',
     'ro':
-        'Boost {network} la {brand} ≈ {cents} ct/L. Verifică în ClubSmart.',
+        'Primești recompense {network} când alimentezi la {brand}. Cupoanele și ofertele curente se schimbă des — verifică-le în aplicație înainte de alimentare.',
     'pl':
-        'Boost {network} na {brand} ≈ {cents} ct/L. Sprawdź w ClubSmart.',
+        'Zbieraj nagrody {network} podczas tankowania na {brand}. Aktualne kupony i oferty regularnie się zmieniają — sprawdź je w aplikacji przed tankowaniem.',
   },
   'deal_shell_us_title': {
     'en': 'Shell Fuel Rewards (USA)',
@@ -2020,23 +2181,23 @@ const Map<String, Map<String, String>> localizedStrings = {
   },
   'deal_shell_us_detail': {
     'en':
-        'Stack Fuel Rewards offers — often several ¢/gal off. Check the Fuel Rewards app for today’s stack.',
+        'Collect {network} rewards when you fuel at {brand}. Current coupons and offers change regularly — check them in the app before fueling.',
     'de':
-        'Fuel-Rewards-Angebote stapeln — oft mehrere ct/gal Rabatt. Heutige Stacks in der App prüfen.',
+        'Sammle {network}-Vorteile beim Tanken bei {brand}. Aktuelle Coupons und Angebote wechseln regelmäßig – prüfe sie vor dem Tanken in der App.',
     'fa':
-        'پیشنهادهای Fuel Rewards را روی هم بگذار — اغلب چند سنت در گالن. استک امروز را در اپ ببین.',
+        'هنگام سوخت‌گیری در {brand} امتیاز/پاداش {network} بگیر. کوپن‌ها و پیشنهادهای فعلی مرتب عوض می‌شوند — قبل از سوخت‌گیری در اپ چک کن.',
     'tr':
-        'Fuel Rewards tekliflerini birleştirin — genelde birkaç ¢/gal. Bugünkü stack uygulamada.',
+        '{brand} istasyonlarında yakıt alırken {network} ödülleri kazan. Güncel kuponlar ve teklifler düzenli değişir — yakıt almadan önce uygulamadan kontrol et.',
     'ru':
-        'Складывайте Fuel Rewards — часто несколько ¢/галлон. Сегодняшний стек в приложении.',
+        'Получайте бонусы {network} при заправке на {brand}. Актуальные купоны и предложения регулярно меняются — проверяйте их в приложении перед заправкой.',
     'ar':
-        'اجمع عروض Fuel Rewards — غالباً عدة سنتات/غالون. تحقق من التطبيق.',
+        'احصل على مكافآت {network} عند التزود بالوقود في {brand}. الكوبونات والعروض الحالية تتغير باستمرار — تحقق منها في التطبيق قبل التزود.',
     'uk':
-        'Складайте Fuel Rewards — часто кілька ¢/галон. Сьогоднішній стек у додатку.',
+        'Отримуйте бонуси {network} під час заправки на {brand}. Актуальні купони й пропозиції регулярно змінюються — перевіряйте їх у застосунку перед заправкою.',
     'ro':
-        'Combină ofertele Fuel Rewards — adesea câțiva ¢/gal. Verifică stack-ul de azi.',
+        'Primești recompense {network} când alimentezi la {brand}. Cupoanele și ofertele curente se schimbă des — verifică-le în aplicație înainte de alimentare.',
     'pl':
-        'Łącz oferty Fuel Rewards — często kilka ¢/gal. Sprawdź dzisiejszy stack.',
+        'Zbieraj nagrody {network} podczas tankowania na {brand}. Aktualne kupony i oferty regularnie się zmieniają — sprawdź je w aplikacji przed tankowaniem.',
   },
   'deal_petro_title': {
     'en': 'Petro-Points (Canada)',
@@ -2051,67 +2212,103 @@ const Map<String, Map<String, String>> localizedStrings = {
   },
   'deal_petro_detail': {
     'en':
-        'Petro-Canada {network} boosts ≈ {cents} ¢/L. Open Petro-Points for active offers.',
+        'Collect {network} rewards when you fuel at {brand}. Current coupons and offers change regularly — check them in the app before fueling.',
     'de':
-        'Petro-Canada {network}-Aktionen ≈ {cents} ct/L. Aktuelle Angebote in Petro-Points.',
+        'Sammle {network}-Vorteile beim Tanken bei {brand}. Aktuelle Coupons und Angebote wechseln regelmäßig – prüfe sie vor dem Tanken in der App.',
     'fa':
-        'تقویت {network} در پتروکانادا حدود {cents} سنت/لیتر. پیشنهادهای فعال را در Petro-Points ببین.',
+        'هنگام سوخت‌گیری در {brand} امتیاز/پاداش {network} بگیر. کوپن‌ها و پیشنهادهای فعلی مرتب عوض می‌شوند — قبل از سوخت‌گیری در اپ چک کن.',
     'tr':
-        'Petro-Canada {network} ≈ {cents} ct/L. Aktif teklifler uygulamada.',
+        '{brand} istasyonlarında yakıt alırken {network} ödülleri kazan. Güncel kuponlar ve teklifler düzenli değişir — yakıt almadan önce uygulamadan kontrol et.',
     'ru':
-        'Акции {network} Petro-Canada ≈ {cents} ¢/л. Активные офферы в приложении.',
+        'Получайте бонусы {network} при заправке на {brand}. Актуальные купоны и предложения регулярно меняются — проверяйте их в приложении перед заправкой.',
     'ar':
-        'تعزيز {network} في بترو كندا ≈ {cents} سنت/لتر. تحقق من التطبيق.',
+        'احصل على مكافآت {network} عند التزود بالوقود في {brand}. الكوبونات والعروض الحالية تتغير باستمرار — تحقق منها في التطبيق قبل التزود.',
     'uk':
-        'Акції {network} Petro-Canada ≈ {cents} ¢/л. Активні офери в додатку.',
+        'Отримуйте бонуси {network} під час заправки на {brand}. Актуальні купони й пропозиції регулярно змінюються — перевіряйте їх у застосунку перед заправкою.',
     'ro':
-        'Boost {network} Petro-Canada ≈ {cents} ct/L. Verifică în app.',
+        'Primești recompense {network} când alimentezi la {brand}. Cupoanele și ofertele curente se schimbă des — verifică-le în aplicație înainte de alimentare.',
     'pl':
-        'Boost {network} Petro-Canada ≈ {cents} ct/L. Sprawdź w aplikacji.',
+        'Zbieraj nagrody {network} podczas tankowania na {brand}. Aktualne kupony i oferty regularnie się zmieniają — sprawdź je w aplikacji przed tankowaniem.',
   },
   'deal_ryd_bonus': {
-    'en': 'Often €5 off first fill via invite — pay from the car, no kiosk.',
-    'de': 'Oft 5 € auf die erste Tankung per Einladung — zahlen aus dem Auto.',
-    'fa': 'معمولاً ۵€ تخفیف اولین سوخت با دعوت — پرداخت از داخل ماشین بدون باجه.',
-    'tr': 'Davetle genelde ilk dolumda 5€ — arabadan ödeyin.',
-    'ru': 'Часто €5 на первую заправку по приглашению — оплата из авто.',
-    'ar': 'غالباً 5€ على أول تعبئة بالدعوة — ادفع من السيارة.',
-    'uk': 'Часто €5 на першу заправку за запрошенням — оплата з авто.',
-    'ro': 'Adesea 5€ la prima alimentare cu invitație — plătești din mașină.',
-    'pl': 'Często 5€ na pierwsze tankowanie z zaproszenia — płatność z auta.',
+    'en':
+        'Pay for fuel from your phone at the pump, without going to the kiosk. New-user offers appear from time to time — check the app.',
+    'de':
+        'Direkt an der Säule per Handy bezahlen, ohne zur Kasse zu gehen. Gelegentlich gibt es Angebote für Neukunden – schau in der App nach.',
+    'fa':
+        'پول سوخت را سر پمپ با موبایل بده، بدون رفتن به صندوق. گاهی برای کاربران جدید پیشنهاد ویژه هست — در اپ چک کن.',
+    'tr':
+        'Kasaya gitmeden, pompada telefonla yakıt öde. Zaman zaman yeni kullanıcılara kampanyalar olur — uygulamadan kontrol et.',
+    'ru':
+        'Оплачивайте топливо с телефона прямо у колонки, без похода в кассу. Иногда бывают акции для новых пользователей — проверьте в приложении.',
+    'ar':
+        'ادفع ثمن الوقود من هاتفك عند المضخة دون الذهاب إلى الكاشير. تظهر أحياناً عروض للمستخدمين الجدد — تحقق في التطبيق.',
+    'uk':
+        'Оплачуйте пальне з телефона прямо біля колонки, без походу до каси. Іноді бувають акції для нових користувачів — перевірте в застосунку.',
+    'ro':
+        'Plătești carburantul din telefon la pompă, fără să mergi la casă. Din când în când apar oferte pentru utilizatori noi — verifică în aplicație.',
+    'pl':
+        'Płać za paliwo telefonem przy dystrybutorze, bez chodzenia do kasy. Od czasu do czasu pojawiają się oferty dla nowych użytkowników — sprawdź w aplikacji.',
   },
   'deal_pace_bonus': {
-    'en': 'Pace Drive: pay at the pump in-app; watch for first-fill / referral credit.',
-    'de': 'Pace Drive: an der Säule in der App zahlen; Ersttank-/Referral-Bonus prüfen.',
-    'fa': 'Pace Drive: پرداخت سر نازل داخل اپ؛ اعتبار دعوت/سوخت اول را چک کن.',
-    'tr': 'Pace Drive: pompadan uygulama ile ödeyin; ilk dolum/davet bonusuna bakın.',
-    'ru': 'Pace Drive: оплата у колонки в приложении; бонус за приглашение.',
-    'ar': 'Pace Drive: ادفع عند المضخة من التطبيق؛ تحقق من مكافأة الدعوة.',
-    'uk': 'Pace Drive: оплата біля колонки в додатку; бонус за запрошення.',
-    'ro': 'Pace Drive: plătești la pompă în app; verifică bonusul de invitație.',
-    'pl': 'Pace Drive: płatność przy dystrybutorze w app; sprawdź bonus zaproszenia.',
+    'en':
+        'Pay for fuel from your phone at the pump, without going to the kiosk. New-user offers appear from time to time — check the app.',
+    'de':
+        'Direkt an der Säule per Handy bezahlen, ohne zur Kasse zu gehen. Gelegentlich gibt es Angebote für Neukunden – schau in der App nach.',
+    'fa':
+        'پول سوخت را سر پمپ با موبایل بده، بدون رفتن به صندوق. گاهی برای کاربران جدید پیشنهاد ویژه هست — در اپ چک کن.',
+    'tr':
+        'Kasaya gitmeden, pompada telefonla yakıt öde. Zaman zaman yeni kullanıcılara kampanyalar olur — uygulamadan kontrol et.',
+    'ru':
+        'Оплачивайте топливо с телефона прямо у колонки, без похода в кассу. Иногда бывают акции для новых пользователей — проверьте в приложении.',
+    'ar':
+        'ادفع ثمن الوقود من هاتفك عند المضخة دون الذهاب إلى الكاشير. تظهر أحياناً عروض للمستخدمين الجدد — تحقق في التطبيق.',
+    'uk':
+        'Оплачуйте пальне з телефона прямо біля колонки, без походу до каси. Іноді бувають акції для нових користувачів — перевірте в застосунку.',
+    'ro':
+        'Plătești carburantul din telefon la pompă, fără să mergi la casă. Din când în când apar oferte pentru utilizatori noi — verifică în aplicație.',
+    'pl':
+        'Płać za paliwo telefonem przy dystrybutorze, bez chodzenia do kasy. Od czasu do czasu pojawiają się oferty dla nowych użytkowników — sprawdź w aplikacji.',
   },
   'deal_fillgo_bonus': {
-    'en': 'Fill & Go style pay-at-pump — check current first-use promo in the partner app.',
-    'de': 'Fill & Go / Pay-at-pump — aktuelle Erstnutzer-Aktion in der Partner-App prüfen.',
-    'fa': 'سبک Fill & Go برای پرداخت سر پمپ — پرومو کاربر اول را در اپ شریک ببین.',
-    'tr': 'Fill & Go tarzı pompa ödemesi — ilk kullanım kampanyasını kontrol edin.',
-    'ru': 'Оплата у колонки Fill & Go — проверьте акцию первого использования.',
-    'ar': 'دفع عند المضخة بأسلوب Fill & Go — تحقق من عرض أول استخدام.',
-    'uk': 'Оплата біля колонки Fill & Go — перевірте акцію першого використання.',
-    'ro': 'Plată la pompă tip Fill & Go — verifică promoția de primă folosire.',
-    'pl': 'Płatność Fill & Go przy dystrybutorze — sprawdź promo pierwszego użycia.',
+    'en':
+        'Pay for fuel from your phone at the pump, without going to the kiosk. New-user offers appear from time to time — check the app.',
+    'de':
+        'Direkt an der Säule per Handy bezahlen, ohne zur Kasse zu gehen. Gelegentlich gibt es Angebote für Neukunden – schau in der App nach.',
+    'fa':
+        'پول سوخت را سر پمپ با موبایل بده، بدون رفتن به صندوق. گاهی برای کاربران جدید پیشنهاد ویژه هست — در اپ چک کن.',
+    'tr':
+        'Kasaya gitmeden, pompada telefonla yakıt öde. Zaman zaman yeni kullanıcılara kampanyalar olur — uygulamadan kontrol et.',
+    'ru':
+        'Оплачивайте топливо с телефона прямо у колонки, без похода в кассу. Иногда бывают акции для новых пользователей — проверьте в приложении.',
+    'ar':
+        'ادفع ثمن الوقود من هاتفك عند المضخة دون الذهاب إلى الكاشير. تظهر أحياناً عروض للمستخدمين الجدد — تحقق في التطبيق.',
+    'uk':
+        'Оплачуйте пальне з телефона прямо біля колонки, без походу до каси. Іноді бувають акції для нових користувачів — перевірте в застосунку.',
+    'ro':
+        'Plătești carburantul din telefon la pompă, fără să mergi la casă. Din când în când apar oferte pentru utilizatori noi — verifică în aplicație.',
+    'pl':
+        'Płać za paliwo telefonem przy dystrybutorze, bez chodzenia do kasy. Od czasu do czasu pojawiają się oferty dla nowych użytkowników — sprawdź w aplikacji.',
   },
   'deal_shell_app_bonus': {
-    'en': 'Shell App (USA): unlock app-only cents-off and Fuel Rewards stacks.',
-    'de': 'Shell App (USA): App-Rabatte und Fuel-Rewards-Stacks freischalten.',
-    'fa': 'اپ Shell (آمریکا): سنت‌آف مخصوص اپ و استک Fuel Rewards.',
-    'tr': 'Shell App (ABD): uygulamaya özel indirim ve Fuel Rewards.',
-    'ru': 'Shell App (США): скидки только в приложении и Fuel Rewards.',
-    'ar': 'تطبيق Shell (أمريكا): خصومات التطبيق وFuel Rewards.',
-    'uk': 'Shell App (США): знижки лише в додатку та Fuel Rewards.',
-    'ro': 'Shell App (SUA): reduceri doar în app și Fuel Rewards.',
-    'pl': 'Shell App (USA): zniżki tylko w app i Fuel Rewards.',
+    'en':
+        'Pay for fuel from your phone at the pump, without going to the kiosk. New-user offers appear from time to time — check the app.',
+    'de':
+        'Direkt an der Säule per Handy bezahlen, ohne zur Kasse zu gehen. Gelegentlich gibt es Angebote für Neukunden – schau in der App nach.',
+    'fa':
+        'پول سوخت را سر پمپ با موبایل بده، بدون رفتن به صندوق. گاهی برای کاربران جدید پیشنهاد ویژه هست — در اپ چک کن.',
+    'tr':
+        'Kasaya gitmeden, pompada telefonla yakıt öde. Zaman zaman yeni kullanıcılara kampanyalar olur — uygulamadan kontrol et.',
+    'ru':
+        'Оплачивайте топливо с телефона прямо у колонки, без похода в кассу. Иногда бывают акции для новых пользователей — проверьте в приложении.',
+    'ar':
+        'ادفع ثمن الوقود من هاتفك عند المضخة دون الذهاب إلى الكاشير. تظهر أحياناً عروض للمستخدمين الجدد — تحقق في التطبيق.',
+    'uk':
+        'Оплачуйте пальне з телефона прямо біля колонки, без походу до каси. Іноді бувають акції для нових користувачів — перевірте в застосунку.',
+    'ro':
+        'Plătești carburantul din telefon la pompă, fără să mergi la casă. Din când în când apar oferte pentru utilizatori noi — verifică în aplicație.',
+    'pl':
+        'Płać za paliwo telefonem przy dystrybutorze, bez chodzenia do kasy. Od czasu do czasu pojawiają się oferty dla nowych użytkowników — sprawdź w aplikacji.',
   },
   'deal_open': {
     'en': 'Open',
@@ -2370,6 +2567,306 @@ const Map<String, Map<String, String>> localizedStrings = {
     'uk': 'Для знижок потрібен Premium.',
     'ro': 'Premium necesar pentru oferte.',
     'pl': 'Do okazji potrzebne jest Premium.',
+  },
+  'deals_premium_b5': {
+    'en':
+        'Step-by-step instructions for each offer: how to actually get it',
+    'de':
+        'Schritt-für-Schritt-Anleitung zu jedem Angebot: So bekommst du es wirklich',
+    'fa':
+        'راهنمای قدم‌به‌قدم برای هر پیشنهاد: دقیقاً چطور آن را بگیری',
+    'tr':
+        'Her teklif için adım adım talimat: gerçekten nasıl alınır',
+    'ru':
+        'Пошаговая инструкция к каждому предложению: как действительно его получить',
+    'ar':
+        'تعليمات خطوة بخطوة لكل عرض: كيف تحصل عليه فعلاً',
+    'uk':
+        'Покрокова інструкція до кожної пропозиції: як справді її отримати',
+    'ro':
+        'Instrucțiuni pas cu pas pentru fiecare ofertă: cum o obții efectiv',
+    'pl':
+        'Instrukcja krok po kroku do każdej oferty: jak naprawdę z niej skorzystać',
+  },
+  'deals_premium_note': {
+    'en':
+        'Offers are run by the stations and apps themselves and change often; savings depend on the current promotion and are not guaranteed.',
+    'de':
+        'Die Angebote stammen von den Tankstellen und Apps selbst und ändern sich oft; die Ersparnis hängt von der aktuellen Aktion ab und ist nicht garantiert.',
+    'fa':
+        'پیشنهادها را خود پمپ‌بنزین‌ها و اپ‌ها ارائه می‌دهند و زود عوض می‌شوند؛ میزان صرفه‌جویی به پروموشن فعلی بستگی دارد و تضمینی نیست.',
+    'tr':
+        'Teklifler istasyonlar ve uygulamaların kendisi tarafından sunulur ve sık değişir; tasarruf mevcut kampanyaya bağlıdır ve garanti edilmez.',
+    'ru':
+        'Предложения проводят сами АЗС и приложения, и они часто меняются; размер экономии зависит от текущей акции и не гарантируется.',
+    'ar':
+        'تقدّم المحطات والتطبيقات هذه العروض بنفسها وهي تتغير كثيراً؛ يعتمد التوفير على العرض الحالي وليس مضموناً.',
+    'uk':
+        'Пропозиції проводять самі АЗС і застосунки, і вони часто змінюються; економія залежить від поточної акції та не гарантується.',
+    'ro':
+        'Ofertele sunt oferite chiar de benzinării și aplicații și se schimbă des; economia depinde de promoția curentă și nu este garantată.',
+    'pl':
+        'Oferty prowadzą same stacje i aplikacje i często się zmieniają; oszczędność zależy od bieżącej promocji i nie jest gwarantowana.',
+  },
+  'deal_howto_title': {
+    'en':
+        'How do I get it?',
+    'de':
+        'Wie bekomme ich das?',
+    'fa':
+        'چطوری بگیرم؟',
+    'tr':
+        'Nasıl alırım?',
+    'ru':
+        'Как получить?',
+    'ar':
+        'كيف أحصل عليه؟',
+    'uk':
+        'Як отримати?',
+    'ro':
+        'Cum îl obțin?',
+    'pl':
+        'Jak z tego skorzystać?',
+  },
+  'deal_howto_loyalty_1': {
+    'en':
+        'Install the {network} app (or get the card) and sign up — it is free.',
+    'de':
+        'Installiere die {network}-App (oder hol dir die Karte) und melde dich kostenlos an.',
+    'fa':
+        'اپ {network} را نصب کن (یا کارتش را بگیر) و ثبت‌نام کن — رایگان است.',
+    'tr':
+        '{network} uygulamasını yükle (veya kartını al) ve ücretsiz üye ol.',
+    'ru':
+        'Установите приложение {network} (или получите карту) и бесплатно зарегистрируйтесь.',
+    'ar':
+        'ثبّت تطبيق {network} (أو احصل على البطاقة) وسجّل مجاناً.',
+    'uk':
+        'Встановіть застосунок {network} (або отримайте картку) і безкоштовно зареєструйтеся.',
+    'ro':
+        'Instalează aplicația {network} (sau ia cardul) și înregistrează-te gratuit.',
+    'pl':
+        'Zainstaluj aplikację {network} (lub weź kartę) i zarejestruj się za darmo.',
+  },
+  'deal_howto_loyalty_2': {
+    'en':
+        'Before fueling, open the app and activate any coupon offered for {brand} — many coupons only count once activated.',
+    'de':
+        'Öffne vor dem Tanken die App und aktiviere passende Coupons für {brand} – viele Coupons zählen nur nach Aktivierung.',
+    'fa':
+        'قبل از سوخت‌گیری اپ را باز کن و کوپن‌های مربوط به {brand} را فعال (activate) کن — خیلی از کوپن‌ها فقط بعد از فعال‌سازی حساب می‌شوند.',
+    'tr':
+        'Yakıt almadan önce uygulamayı aç ve {brand} için sunulan kuponları etkinleştir — birçok kupon ancak etkinleştirilince geçerli olur.',
+    'ru':
+        'Перед заправкой откройте приложение и активируйте купоны для {brand} — многие купоны действуют только после активации.',
+    'ar':
+        'قبل التزود بالوقود افتح التطبيق وفعّل أي كوبون متاح لـ {brand} — كثير من الكوبونات لا تُحتسب إلا بعد تفعيلها.',
+    'uk':
+        'Перед заправкою відкрийте застосунок і активуйте купони для {brand} — багато купонів діють лише після активації.',
+    'ro':
+        'Înainte de alimentare, deschide aplicația și activează cupoanele disponibile pentru {brand} — multe cupoane contează doar după activare.',
+    'pl':
+        'Przed tankowaniem otwórz aplikację i aktywuj kupony dla {brand} — wiele kuponów działa dopiero po aktywacji.',
+  },
+  'deal_howto_loyalty_3': {
+    'en':
+        'Fuel at a {brand} station and show your card or app when paying (or enter your member ID if asked) — points and discounts are applied there.',
+    'de':
+        'Tanke bei {brand} und zeige beim Bezahlen deine Karte oder App (oder gib deine Mitglieds-ID ein) – Punkte und Rabatte werden dort verbucht.',
+    'fa':
+        'در یکی از پمپ‌های {brand} سوخت بزن و موقع پرداخت کارت یا اپ را نشان بده (یا اگر خواستند شماره عضویت را وارد کن) — امتیاز و تخفیف همان‌جا اعمال می‌شود.',
+    'tr':
+        'Bir {brand} istasyonunda yakıt al ve öderken kartını ya da uygulamanı göster (istenirse üye numaranı gir) — puan ve indirim orada uygulanır.',
+    'ru':
+        'Заправьтесь на АЗС {brand} и при оплате покажите карту или приложение (или введите номер участника) — баллы и скидки начисляются там.',
+    'ar':
+        'تزوّد بالوقود في محطة {brand} واعرض بطاقتك أو التطبيق عند الدفع (أو أدخل رقم العضوية إن طُلب) — تُطبق النقاط والخصومات هناك.',
+    'uk':
+        'Заправтеся на АЗС {brand} і під час оплати покажіть картку чи застосунок (або введіть номер учасника) — бали та знижки нараховуються там.',
+    'ro':
+        'Alimentează la o benzinărie {brand} și arată cardul sau aplicația la plată (sau introdu ID-ul de membru) — punctele și reducerile se aplică acolo.',
+    'pl':
+        'Zatankuj na stacji {brand} i przy płatności pokaż kartę lub aplikację (albo podaj numer członkowski) — punkty i zniżki nalicza się tam.',
+  },
+  'deal_howto_payapp_1': {
+    'en':
+        'Install {name} from the App Store or Google Play and create an account.',
+    'de':
+        'Installiere {name} aus dem App Store oder Google Play und erstelle ein Konto.',
+    'fa':
+        '{name} را از App Store یا Google Play نصب کن و حساب بساز.',
+    'tr':
+        '{name} uygulamasını App Store veya Google Play’den yükle ve hesap oluştur.',
+    'ru':
+        'Установите {name} из App Store или Google Play и создайте аккаунт.',
+    'ar':
+        'ثبّت {name} من App Store أو Google Play وأنشئ حساباً.',
+    'uk':
+        'Встановіть {name} з App Store або Google Play і створіть акаунт.',
+    'ro':
+        'Instalează {name} din App Store sau Google Play și creează un cont.',
+    'pl':
+        'Zainstaluj {name} z App Store lub Google Play i załóż konto.',
+  },
+  'deal_howto_payapp_2': {
+    'en':
+        'Add a payment method, and look in the app for any current offer for new users before your first fill.',
+    'de':
+        'Hinterlege eine Zahlungsmethode und prüfe vor dem ersten Tanken, ob es in der App ein aktuelles Neukunden-Angebot gibt.',
+    'fa':
+        'یک روش پرداخت اضافه کن و قبل از اولین سوخت‌گیری ببین در اپ پیشنهاد فعالی برای کاربران جدید هست یا نه.',
+    'tr':
+        'Bir ödeme yöntemi ekle ve ilk yakıt alımından önce uygulamada yeni kullanıcılar için güncel bir teklif olup olmadığına bak.',
+    'ru':
+        'Добавьте способ оплаты и перед первой заправкой проверьте в приложении, есть ли сейчас акция для новых пользователей.',
+    'ar':
+        'أضف وسيلة دفع، وتحقق في التطبيق قبل أول تعبئة مما إذا كان هناك عرض حالي للمستخدمين الجدد.',
+    'uk':
+        'Додайте спосіб оплати й перед першою заправкою перевірте в застосунку, чи є зараз акція для нових користувачів.',
+    'ro':
+        'Adaugă o metodă de plată și verifică în aplicație, înainte de prima alimentare, dacă există o ofertă curentă pentru utilizatori noi.',
+    'pl':
+        'Dodaj metodę płatności i przed pierwszym tankowaniem sprawdź w aplikacji, czy jest aktualna oferta dla nowych użytkowników.',
+  },
+  'deal_howto_payapp_3': {
+    'en':
+        'At a station supported by the app, select your pump number in the app and fuel up — payment is completed in the app.',
+    'de':
+        'Wähle an einer von der App unterstützten Tankstelle deine Säulennummer in der App und tanke – bezahlt wird direkt in der App.',
+    'fa':
+        'در پمپ‌بنزینی که اپ پشتیبانی می‌کند، شماره نازل را در اپ انتخاب کن و سوخت بزن؛ پرداخت داخل خود اپ انجام می‌شود.',
+    'tr':
+        'Uygulamanın desteklediği bir istasyonda uygulamadan pompa numaranı seç ve yakıtını al; ödeme uygulamada tamamlanır.',
+    'ru':
+        'На АЗС, которую поддерживает приложение, выберите номер колонки в приложении и заправьтесь — оплата пройдёт в приложении.',
+    'ar':
+        'في محطة يدعمها التطبيق، اختر رقم المضخة في التطبيق وتزوّد بالوقود — يتم الدفع داخل التطبيق.',
+    'uk':
+        'На АЗС, яку підтримує застосунок, оберіть у ньому номер колонки й заправтеся — оплата пройде в застосунку.',
+    'ro':
+        'La o benzinărie acceptată de aplicație, alege numărul pompei în aplicație și alimentează — plata se face în aplicație.',
+    'pl':
+        'Na stacji obsługiwanej przez aplikację wybierz w niej numer dystrybutora i zatankuj — płatność odbywa się w aplikacji.',
+  },
+  'deal_howto_crowd_1': {
+    'en':
+        'Tap “Directions” to get to the station.',
+    'de':
+        'Tippe auf „Route“, um zur Tankstelle zu navigieren.',
+    'fa':
+        'روی «مسیریابی» بزن تا تا پمپ راهنمایی شوی.',
+    'tr':
+        'İstasyona gitmek için “Yol tarifi”ne dokun.',
+    'ru':
+        'Нажмите «Маршрут», чтобы доехать до АЗС.',
+    'ar':
+        'اضغط «الاتجاهات» للوصول إلى المحطة.',
+    'uk':
+        'Натисніть «Маршрут», щоб доїхати до АЗС.',
+    'ro':
+        'Apasă „Traseu” pentru a ajunge la benzinărie.',
+    'pl':
+        'Stuknij „Nawiguj”, aby dojechać na stację.',
+  },
+  'deal_howto_crowd_2': {
+    'en':
+        'Before fueling, check that the price or offer at the pump matches the deal — another driver shared it and it may have ended.',
+    'de':
+        'Prüfe vor dem Tanken, ob Preis oder Angebot an der Säule noch stimmt – ein anderer Fahrer hat den Deal geteilt, er kann schon vorbei sein.',
+    'fa':
+        'قبل از سوخت‌گیری مطمئن شو قیمت یا پیشنهاد سر پمپ با این تخفیف یکی است — این را راننده دیگری ثبت کرده و ممکن است تمام شده باشد.',
+    'tr':
+        'Yakıt almadan önce pompadaki fiyatın veya teklifin fırsatla aynı olduğunu kontrol et — başka bir sürücü paylaştı, sona ermiş olabilir.',
+    'ru':
+        'Перед заправкой убедитесь, что цена или акция на колонке совпадает — скидкой поделился другой водитель, и она могла закончиться.',
+    'ar':
+        'قبل التزود تأكد أن السعر أو العرض عند المضخة مطابق — شاركه سائق آخر وربما انتهى.',
+    'uk':
+        'Перед заправкою переконайтеся, що ціна чи акція на колонці збігається — знижкою поділився інший водій, і вона могла закінчитися.',
+    'ro':
+        'Înainte de alimentare, verifică dacă prețul sau oferta de la pompă corespunde — a fost distribuită de alt șofer și poate s-a încheiat.',
+    'pl':
+        'Przed tankowaniem sprawdź, czy cena lub oferta przy dystrybutorze się zgadza — udostępnił ją inny kierowca i mogła się już skończyć.',
+  },
+  'deal_howto_crowd_3': {
+    'en':
+        'If there is a code, copy it and show it at the checkout or enter it where the deal says.',
+    'de':
+        'Gibt es einen Code, kopiere ihn und zeige ihn an der Kasse oder gib ihn dort ein, wo der Deal es beschreibt.',
+    'fa':
+        'اگر کدی دارد، کپی‌اش کن و موقع پرداخت نشان بده یا همان‌جایی که در توضیح تخفیف آمده وارد کن.',
+    'tr':
+        'Bir kod varsa kopyala ve kasada göster ya da fırsatta belirtilen yere gir.',
+    'ru':
+        'Если есть код, скопируйте его и покажите на кассе или введите там, где указано в описании.',
+    'ar':
+        'إن وُجد رمز، انسخه واعرضه عند الدفع أو أدخله حيث يذكر العرض.',
+    'uk':
+        'Якщо є код, скопіюйте його й покажіть на касі або введіть там, де вказано в описі.',
+    'ro':
+        'Dacă există un cod, copiază-l și arată-l la casă sau introdu-l unde indică oferta.',
+    'pl':
+        'Jeśli jest kod, skopiuj go i pokaż przy kasie albo wpisz tam, gdzie wskazuje oferta.',
+  },
+  'deal_navigate': {
+    'en':
+        'Directions',
+    'de':
+        'Route',
+    'fa':
+        'مسیریابی',
+    'tr':
+        'Yol tarifi',
+    'ru':
+        'Маршрут',
+    'ar':
+        'الاتجاهات',
+    'uk':
+        'Маршрут',
+    'ro':
+        'Traseu',
+    'pl':
+        'Nawiguj',
+  },
+  'deal_share_pick_station': {
+    'en':
+        'Station from the map (for directions)',
+    'de':
+        'Tankstelle aus der Karte (für die Route)',
+    'fa':
+        'انتخاب پمپ از نقشه (برای مسیریابی)',
+    'tr':
+        'Haritadan istasyon (yol tarifi için)',
+    'ru':
+        'АЗС с карты (для маршрута)',
+    'ar':
+        'محطة من الخريطة (للاتجاهات)',
+    'uk':
+        'АЗС з мапи (для маршруту)',
+    'ro':
+        'Benzinărie de pe hartă (pentru traseu)',
+    'pl':
+        'Stacja z mapy (do nawigacji)',
+  },
+  'deal_share_pick_none': {
+    'en':
+        'Not in the list',
+    'de':
+        'Nicht in der Liste',
+    'fa':
+        'در لیست نیست',
+    'tr':
+        'Listede yok',
+    'ru':
+        'Нет в списке',
+    'ar':
+        'ليست في القائمة',
+    'uk':
+        'Немає в списку',
+    'ro':
+        'Nu e în listă',
+    'pl':
+        'Nie ma na liście',
   },
 };
 

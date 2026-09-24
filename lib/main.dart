@@ -33,10 +33,19 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:in_app_update/in_app_update.dart';
 
-import 'dart:io'; 
+import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
+
+/// NSW FuelCheck نیاز به یک کلید API رایگان دارد (ثبت‌نام در
+/// https://api.nsw.gov.au، پروژه‌ی «Fuel Check API»). بدون این کلید، بیشتر
+/// استرالیا (خارج از استرالیای غربی که FuelWatch رایگان است) قیمت زنده
+/// نمی‌گیرد. موقع build با پاس دادن
+/// --dart-define=AUSTRALIA_FUELCHECK_API_KEY=<کلید واقعی> مقداردهی می‌شود.
+const String _australiaFuelCheckApiKey =
+    String.fromEnvironment('AUSTRALIA_FUELCHECK_API_KEY');
 
 /// Parses the 2MB offline station file off the UI isolate.
 Map<String, dynamic> parseOfflineStationsJson(String jsonString) {
@@ -126,6 +135,15 @@ class MaintenanceItem {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // شروع زودهنگام و بدون await: initState صفحه‌ی اول (PurchaseManager().
+  // checkPremiumStatus()) طوری صدا زده می‌شود که ممکن است زودتر از رسیدن
+  // اجرا به _warmUpBackgroundServices اتفاق بیفتد؛ با شروع Firebase همین‌جا،
+  // بیشترین فرصت را برای آماده شدن قبل از آن دارد. هر جای دیگری که به
+  // Firestore/Cloud Functions نیاز دارد همین Future مشترک را await می‌کند،
+  // پس صرف‌نظر از ترتیب اجرا، هیچ‌کس زودتر از آماده‌شدن Firebase به آن دست
+  // نمی‌زند (رفع خطای core/no-app).
+  ensureFirebaseInitialized();
+
   // Hive is required for language/settings on the first frame.
   try {
     await Hive.initFlutter();
@@ -145,17 +163,13 @@ void main() async {
   _warmUpBackgroundServices();
 }
 
-void _warmUpBackgroundServices() {
+void _warmUpBackgroundServices() async {
   AppTimelineManager().hydrateFromLocalCache();
+
+  await ensureFirebaseInitialized();
 
   AppTimelineManager().initializeAndSync().catchError((e) {
     debugPrint('Timeline sync error: $e');
-  });
-
-  Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  ).catchError((e) {
-    debugPrint('Firebase init error: $e');
   });
 
   NotificationService.init().catchError((e) {
@@ -208,6 +222,203 @@ class FuelDashboard extends StatefulWidget {
   State<FuelDashboard> createState() => _FuelDashboardState();
 }
 
+/// دور یک ویجت هدف (انتخاب سوخت / دکمه موقعیت) یک قاب طلایی چشمک‌زن به همراه
+/// فلش و پیام راهنما می‌کشد تا در اولین ورود کاربر را قدم به قدم راهنمایی کند.
+class _OnboardingSpotlight extends StatefulWidget {
+  final Widget child;
+  final String message;
+  final bool arrowOnTop;
+
+  const _OnboardingSpotlight({
+    required this.child,
+    required this.message,
+    this.arrowOnTop = true,
+  });
+
+  @override
+  State<_OnboardingSpotlight> createState() => _OnboardingSpotlightState();
+}
+
+class _OnboardingSpotlightState extends State<_OnboardingSpotlight>
+    with SingleTickerProviderStateMixin {
+  static const Color _accent = Color(0xFFFFC107);
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+  late final Animation<double> _bounce = Tween<double>(begin: 0, end: 7).animate(
+    CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _bubble() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF212121),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        widget.message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final arrowIcon = Icon(
+      widget.arrowOnTop ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+      color: _accent,
+      size: 26,
+    );
+
+    final hint = AnimatedBuilder(
+      animation: _bounce,
+      builder: (context, _) {
+        final offset = widget.arrowOnTop ? -_bounce.value : _bounce.value;
+        return Transform.translate(
+          offset: Offset(0, offset),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: widget.arrowOnTop
+                ? [_bubble(), const SizedBox(height: 2), arrowIcon]
+                : [arrowIcon, const SizedBox(height: 2), _bubble()],
+          ),
+        );
+      },
+    );
+
+    final framedChild = AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final glow = 0.35 + _controller.value * 0.4;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _accent, width: 3),
+            boxShadow: [
+              BoxShadow(color: _accent.withOpacity(glow), blurRadius: 12, spreadRadius: 2),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: widget.arrowOnTop
+          ? [hint, const SizedBox(height: 4), framedChild]
+          : [framedChild, const SizedBox(height: 4), hint],
+    );
+  }
+}
+
+/// پیام راهنمای بالای نقشه در قدم سوم (انتخاب ارزان‌ترین پمپ بنزین).
+class _OnboardingBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const _OnboardingBanner({required this.message, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 6,
+      borderRadius: BorderRadius.circular(12),
+      color: const Color(0xFF212121),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.local_gas_station, color: Color(0xFFFFC107), size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: onDismiss,
+              child: const Icon(Icons.close, color: Colors.white70, size: 18),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// درست بعد از زدن دکمه موقعیت: هایلایت حذف می‌شود و به‌جایش یک پیام
+/// «در حال بارگذاری» زیر دکمه نشان داده می‌شود تا نقشه و پمپ‌بنزین‌ها لود شوند.
+class _OnboardingWaitHint extends StatelessWidget {
+  final Widget child;
+  final String message;
+
+  const _OnboardingWaitHint({required this.child, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        child,
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xFF212121),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFC107)),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _FuelDashboardState extends State<FuelDashboard> with AutomaticKeepAliveClientMixin {
   String selectedFuel = 'diesel'; // پیش‌فرض
   List stations = [];
@@ -218,8 +429,15 @@ class _FuelDashboardState extends State<FuelDashboard> with AutomaticKeepAliveCl
   String licensePlate = '';
   String workshopName = '';
   String workshopPhone = '';
+  String insuranceCompany = '';
   String insurancePhone = '';
   bool _isEditingWorkshopPhone = true;
+  bool _isEditingInsurancePhone = true;
+  // این سه‌تا اختیاری‌ان؛ اگه کاربر نخواد پرشون کنه می‌تونه با زدن × مخفیشون
+  // کنه (بدون اینکه دیگه هر بار هایلایت/تشویق به پر کردن بشه).
+  bool _dismissedCarModelField = false;
+  bool _dismissedInsurancePhoneField = false;
+  bool _dismissedWorkshopField = false;
   //String selectedServiceType = 'Oil Change';
   String selectedServiceType = 'cat_oil'; // یا 'oil' (دقیقاً همان کلیدی که در translations.dart داری)
   String currentKm = '';
@@ -284,6 +502,33 @@ class _FuelDashboardState extends State<FuelDashboard> with AutomaticKeepAliveCl
   bool isSearchLoading = false;
   bool _useCompactMapSearch = false;
 
+  // راهنمای اولین ورود: 0=غیرفعال، 1=انتخاب سوخت، 2=زدن دکمه موقعیت،
+  // 3=در حال بارگذاری نقشه/پمپ‌بنزین‌ها، 4=زدن ارزان‌ترین پمپ
+  static const String _onboardingDoneKey = 'onboardingGuideDone_v1';
+  int _onboardingStep = 0;
+
+  void _completeOnboarding() {
+    if (_onboardingStep == 0) return;
+    setState(() => _onboardingStep = 0);
+    Hive.box('settingsBox').put(_onboardingDoneKey, true);
+  }
+
+  String? get _cheapestOnboardStationKey {
+    if (selectedFuel == 'parking' || selectedFuel == 'ev') return null;
+    String? bestKey;
+    double? bestPrice;
+    for (final s in _visibleMapStations) {
+      if (_pointOfStation(s) == null) continue;
+      final price = (s['price'] as num?)?.toDouble();
+      if (price == null || price <= 0) continue;
+      if (bestPrice == null || price < bestPrice) {
+        bestPrice = price;
+        bestKey = _stationKey(s);
+      }
+    }
+    return bestKey;
+  }
+
   bool _isBannerLoading = false;
 
   void _loadBannerAd() {
@@ -345,6 +590,9 @@ class _FuelDashboardState extends State<FuelDashboard> with AutomaticKeepAliveCl
     _searchFocusNode.dispose();
     _priceController.dispose();
     _mapMoveDebounce?.cancel();
+    for (final c in _mileageControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -791,6 +1039,9 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
         lng: searchLng,
         radiusKm: _fuelSearchRadiusKm,
         fuelType: fuelForCountry,
+        australiaApiKey: _australiaFuelCheckApiKey.isEmpty
+            ? null
+            : _australiaFuelCheckApiKey,
       );
 
       if (!mounted) return;
@@ -1237,8 +1488,19 @@ Future<void> _selectPlaceSuggestion(Map<String, String> suggestion) async {
 
 
 Future<void> _searchNearby() async {
+  // به‌محض زدن دکمه، هایلایت را برمی‌داریم و وضعیت «در حال بارگذاری» راهنما را نشان می‌دهیم.
+  final bool onboardingWasWaitingForTap = _onboardingStep == 2;
+  if (onboardingWasWaitingForTap) {
+    setState(() => _onboardingStep = 3);
+  }
+
   final hasConsent = await _ensureNavigationConsentAndOsPermission();
-  if (!hasConsent) return;
+  if (!hasConsent) {
+    if (onboardingWasWaitingForTap && _onboardingStep == 3) {
+      setState(() => _onboardingStep = 2);
+    }
+    return;
+  }
 
   setState(() {
     isSearchLoading = true;
@@ -1254,12 +1516,26 @@ Future<void> _searchNearby() async {
     await _searchStations(userLat, userLng);
     _fitMapToSearchResults();
     _activateFullMapSearchView();
+    if (_onboardingStep == 3) {
+      // اگر هیچ پمپ‌بنزینی پیدا نشد، چیزی برای هایلایت‌کردن نیست؛ راهنما را
+      // همینجا کامل می‌کنیم تا برای همیشه در وضعیت «در حال بارگذاری» گیر نکند.
+      if (_cheapestOnboardStationKey != null) {
+        setState(() => _onboardingStep = 4);
+      } else {
+        _completeOnboarding();
+      }
+    }
 
   } catch (e) {
     debugPrint('Location Error: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(translate('error_generic', widget.currentLang, {'error': '$e'}))),
-    );
+    if (onboardingWasWaitingForTap && _onboardingStep == 3) {
+      setState(() => _onboardingStep = 2);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(translate('error_generic', widget.currentLang, {'error': '$e'}))),
+      );
+    }
   } finally {
     if (mounted) {
       setState(() => isSearchLoading = false);
@@ -1432,6 +1708,9 @@ Future<void> _searchNearby() async {
       lng: lng,
       radiusKm: radiusKm,
       fuelType: selectedFuel,
+      australiaApiKey: _australiaFuelCheckApiKey.isEmpty
+          ? null
+          : _australiaFuelCheckApiKey,
     );
   }
 
@@ -2086,6 +2365,12 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
     selectedFuel = settingsBox.get('lastSelectedFuel', defaultValue: 'diesel');
     // ---------------------------------------------
 
+    final bool onboardingDone =
+        settingsBox.get(_onboardingDoneKey, defaultValue: false) as bool;
+    if (!onboardingDone) {
+      _onboardingStep = 1;
+    }
+
      if (!kIsWeb) {
      PurchaseManager().initialize(
     onError: (errorMessage) {
@@ -2103,6 +2388,7 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
         backgroundColor: Colors.green,
       ),
     );
+    _openDealsAfterPurchase();
   }
 },
   );
@@ -2142,6 +2428,12 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
     final box = Hive.box('settingsBox');
     final autoBerlinDone =
         box.get('autoBerlinSearchDone', defaultValue: false) == true;
+    if (_onboardingStep != 0) {
+      // راهنمای اولین ورود فعال است: به‌جای جستجوی خودکار برلین، اجازه می‌دهیم
+      // کاربر خودش نوع سوخت و موقعیت مکانی را طبق راهنما انتخاب کند.
+      if (!autoBerlinDone) await box.put('autoBerlinSearchDone', true);
+      return;
+    }
     if (!autoBerlinDone) {
       await box.put('autoBerlinSearchDone', true);
       await box.put('countryCode', 'de');
@@ -2271,10 +2563,15 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
         licensePlate = savedData['licensePlate']?.toString() ?? '';
         workshopName = savedData['workshopName']?.toString() ?? '';
         workshopPhone = savedData['workshopPhone']?.toString() ?? '';
+        insuranceCompany = savedData['insuranceCompany']?.toString() ?? '';
         insurancePhone = savedData['insurancePhone']?.toString() ?? '';
         currentKm = savedData['currentKm']?.toString() ?? currentKm;
         maintenanceItems = items.isNotEmpty ? items : _defaultMaintenanceItems();
         _isEditingWorkshopPhone = !_isValidPhoneNumber(workshopPhone);
+        _isEditingInsurancePhone = !_isValidPhoneNumber(insurancePhone);
+        _dismissedCarModelField = savedData['dismissedCarModelField'] == true;
+        _dismissedInsurancePhoneField = savedData['dismissedInsurancePhoneField'] == true;
+        _dismissedWorkshopField = savedData['dismissedWorkshopField'] == true;
         _isMaintenanceLoading = false;
       });
     } else {
@@ -2309,8 +2606,12 @@ Widget _buildPriceDetail(String label, double price, {bool isBold = false}) {
       'licensePlate': licensePlate,
       'workshopName': workshopName,
       'workshopPhone': workshopPhone,
+      'insuranceCompany': insuranceCompany,
       'insurancePhone': insurancePhone,
       'currentKm': currentKm,
+      'dismissedCarModelField': _dismissedCarModelField,
+      'dismissedInsurancePhoneField': _dismissedInsurancePhoneField,
+      'dismissedWorkshopField': _dismissedWorkshopField,
       'items': maintenanceItems.map((item) => item.toMap()).toList(),
     });
     await box.put('model', carModel);
@@ -2532,7 +2833,7 @@ Future<void> _refreshAllMaintenanceReminders() async {
   final int currentIntervalDays = item.intervalDays ?? getDefaultIntervalDays(item.key);
 
   final kmIntervalController = TextEditingController(
-      text: currentIntervalKm == 0 ? '' : currentIntervalKm.toString());
+      text: currentIntervalKm == 0 ? '' : _kmToDisplayInt(currentIntervalKm).toString());
   final daysIntervalController = TextEditingController(text: currentIntervalDays.toString());
 
   await showDialog(
@@ -2563,7 +2864,8 @@ Future<void> _refreshAllMaintenanceReminders() async {
                 controller: kmIntervalController,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: translate('reminder_interval_km', widget.currentLang),
+                  labelText: translate('reminder_interval_km', widget.currentLang,
+                      {'unit': _distanceUnitLabel}),
                   hintText: translate('example_km', widget.currentLang),
                   border: const OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.speed),
@@ -2600,7 +2902,8 @@ Future<void> _refreshAllMaintenanceReminders() async {
           ElevatedButton(
             onPressed: () async {
               final days = int.tryParse(reminderController.text) ?? 7;
-              final customKm = int.tryParse(kmIntervalController.text) ?? 0;
+              final customKmDisplay = int.tryParse(kmIntervalController.text) ?? 0;
+              final customKm = _displayIntToKm(customKmDisplay);
               final customDays = int.tryParse(daysIntervalController.text) ?? 365;
 
               setState(() {
@@ -2635,6 +2938,108 @@ Future<void> _refreshAllMaintenanceReminders() async {
     if (normalized.isEmpty) return false;
     final phoneRegex = RegExp(r'^\+?[0-9\s\-/()]{6,15}$');
     return phoneRegex.hasMatch(normalized);
+  }
+
+  // ─── واحد فاصله (کیلومتر/مایل) ───────────────────────────────────────
+  // کارکرد ماشین همیشه داخلی به کیلومتر ذخیره می‌شود (تا محاسبات یادآور
+  // سرویس دست‌نخورده بماند)؛ فقط ورودی/خروجیِ فیلدهای صفحه، برای کشورهایی
+  // که با مایل کار می‌کنند، تبدیل می‌شود.
+  static const double _kmPerMile = 1.609344;
+
+  bool get _useMiles {
+    final cc = _activeFuelCountryCode.toLowerCase();
+    return cc == 'us' || cc == 'uk' || cc == 'gb';
+  }
+
+  String get _distanceUnitKey => _useMiles ? 'mile' : 'km';
+  String get _distanceUnitLabel =>
+      translate(_useMiles ? 'unit_mile' : 'unit_km', widget.currentLang);
+
+  int _kmToDisplayInt(int km) =>
+      _useMiles ? (km / _kmPerMile).round() : km;
+  int _displayIntToKm(int display) =>
+      _useMiles ? (display * _kmPerMile).round() : display;
+
+  String _kmStrToDisplayStr(String kmStr) {
+    if (kmStr.trim().isEmpty) return '';
+    final v = int.tryParse(kmStr.trim());
+    return v == null ? kmStr : _kmToDisplayInt(v).toString();
+  }
+
+  String _displayStrToKmStr(String displayStr) {
+    if (displayStr.trim().isEmpty) return '';
+    final v = int.tryParse(displayStr.trim());
+    return v == null ? displayStr : _displayIntToKm(v).toString();
+  }
+
+  /// آستانه‌ی هشدارِ «اختلاف زیاد با کارکرد فعلی» — عدد گرد و طبیعی در همان
+  /// واحدی که کاربر می‌بیند (۳۰٬۰۰۰ کیلومتر یا ۲۰٬۰۰۰ مایل)، نه یک تبدیل
+  /// ناجور از یکی به دیگری.
+  int get _mileageDiffAlertThresholdKm =>
+      _useMiles ? _displayIntToKm(20000) : 30000;
+  int get _mileageDiffAlertThresholdDisplay => _useMiles ? 20000 : 30000;
+
+  // فیلد کارکردِ هر آیتم سرویس قبلاً هر بار build یک TextEditingController
+  // تازه می‌ساخت؛ همین باعث می‌شد وسط تایپ‌کردن، فیلد مقدار را پس بگیرد یا
+  // اصلاً چیزی تایپ نشود. حالا یک کنترلر پایدار به‌ازای هر آیتم نگه می‌داریم
+  // و فقط وقتی خودمان (نه خودِ فیلد) مقدار را عوض می‌کنیم syncش می‌کنیم.
+  final Map<String, TextEditingController> _mileageControllers = {};
+
+  TextEditingController _mileageControllerFor(MaintenanceItem item) {
+    return _mileageControllers.putIfAbsent(
+      item.key,
+      () => TextEditingController(text: _kmStrToDisplayStr(item.mileage)),
+    );
+  }
+
+  void _syncMileageController(MaintenanceItem item) {
+    final controller = _mileageControllers[item.key];
+    if (controller == null) return;
+    final display = _kmStrToDisplayStr(item.mileage);
+    if (controller.text != display) controller.text = display;
+  }
+
+  // ─── انتخاب شماره از دفترچه تلفن گوشی ────────────────────────────────
+  // flutter_contacts فقط اندروید/iOS را پشتیبانی می‌کند؛ روی وب/دسکتاپ
+  // دکمه‌ی انتخاب از دفترچه اصلاً نشان داده نمی‌شود.
+  bool get _contactsPickerSupported =>
+      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+  Future<void> _pickPhoneFromContacts(ValueChanged<String> onPicked) async {
+    try {
+      // بدون گرفتن مجوز به‌صورت صریح، صدا زدن openExternalPick روی اندروید
+      // می‌تواند در سمت native با SecurityException کرش کند (چون این پلاگین
+      // بعد از انتخاب مخاطب، جزئیاتش را با یک کوئری جداگانه به Contacts
+      // Provider می‌خواند که به READ_CONTACTS نیاز دارد) — دقیقاً همان چیزی
+      // که باعث می‌شد اپ هنگام زدن روی یک مخاطب کاملاً بسته شود.
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(translate('contacts_permission_denied', widget.currentLang))),
+          );
+        }
+        return;
+      }
+      final contact = await FlutterContacts.openExternalPick();
+      if (contact == null) return;
+      if (contact.phones.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(translate('contact_no_phone', widget.currentLang))),
+          );
+        }
+        return;
+      }
+      onPicked(contact.phones.first.number.trim());
+    } catch (e) {
+      debugPrint('Contact pick failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(translate('contact_pick_failed', widget.currentLang))),
+        );
+      }
+    }
   }
 
   String _getPrimaryPhoneNumber(MaintenanceItem item) {
@@ -2994,6 +3399,7 @@ Future<void> _openGoogleMapsForParkingFallback({
     setState(() {
       maintenanceItems.remove(item);
     });
+    _mileageControllers.remove(item.key)?.dispose();
     await _saveMaintenanceData();
     await NotificationService.cancelMaintenanceNotification(item.key);
     await _refreshAllMaintenanceReminders();
@@ -3010,6 +3416,217 @@ Future<void> _openGoogleMapsForParkingFallback({
       maintenanceItems.insert(newIndex, item);
     });
     await _saveMaintenanceData();
+  }
+
+  Widget _serviceSectionHeader(IconData icon, String title, Color color) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _serviceFieldDecoration({
+    required String label,
+    String? hint,
+    required IconData icon,
+  }) {
+    return InputDecoration(
+      isDense: true,
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white,
+      prefixIcon: Icon(icon, size: 20),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+      ),
+    );
+  }
+
+  Widget _serviceTextField({
+    required String label,
+    required String value,
+    String? hint,
+    IconData icon = Icons.edit_outlined,
+    TextInputType keyboardType = TextInputType.text,
+    required ValueChanged<String> onChanged,
+  }) {
+    return TextField(
+      keyboardType: keyboardType,
+      decoration: _serviceFieldDecoration(label: label, hint: hint, icon: icon),
+      controller: TextEditingController(text: value),
+      onChanged: onChanged,
+    );
+  }
+
+  /// فیلد شماره تلفن با دکمه‌ی «انتخاب از دفترچه تلفن»؛ وقتی شماره معتبر
+  /// تایید شده باشد، به‌صورت یک چیپ سبز خلاصه نشان داده می‌شود.
+  Widget _servicePhoneField({
+    required String label,
+    required String value,
+    required bool isEditing,
+    required VoidCallback onEdit,
+    required ValueChanged<String> onChanged,
+    required ValueChanged<String> onCommit,
+  }) {
+    if (!isEditing && _isValidPhoneNumber(value)) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.green.shade300),
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.green.shade50,
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.phone, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 18),
+              onPressed: onEdit,
+              tooltip: translate('edit_phone', widget.currentLang),
+            ),
+          ],
+        ),
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Focus(
+            onFocusChange: (hasFocus) {
+              if (!hasFocus) onCommit(value);
+            },
+            child: TextField(
+              keyboardType: TextInputType.phone,
+              decoration: _serviceFieldDecoration(
+                label: label,
+                hint: translate('phone_example', widget.currentLang),
+                icon: Icons.phone,
+              ),
+              controller: TextEditingController(text: value),
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+        if (_contactsPickerSupported) ...[
+          const SizedBox(width: 6),
+          Material(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(10),
+            child: IconButton(
+              icon: const Icon(Icons.contact_phone, color: Colors.blueAccent),
+              tooltip: translate('pick_from_contacts', widget.currentLang),
+              onPressed: () => _pickPhoneFromContacts((picked) => onCommit(picked)),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// اطراف یک فیلد اختیاری (مدل خودرو/بیمه/تعمیرگاه) را می‌گیرد: وقتی خالیه
+  /// یه هایلایت ملایم (بدون انیمیشن یا دیالوگ، فقط یه حاشیه‌ی کهربایی) نشون
+  /// می‌ده تا کاربر تشویق بشه پرش کنه، و یه × کوچیک هم می‌ذاره تا اگه
+  /// نخواست پرش کنه، بتونه کامل مخفیش کنه (بعداً با زدن روی چیپ «افزودن...»
+  /// دوباره برش گردونه). وقتی پر شده باشه، بدون هیچ تزئینی همون child رو
+  /// نشون می‌ده — تا کاربر کلافه‌ی هایلایتِ همیشگی نشه.
+  Widget _dismissibleServiceField({
+    bool isDismissed = false,
+    required bool isEmpty,
+    VoidCallback? onDismiss,
+    VoidCallback? onRestore,
+    String restoreLabel = '',
+    IconData restoreIcon = Icons.add,
+    required Widget child,
+  }) {
+    if (isDismissed) {
+      return InkWell(
+        onTap: onRestore,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(restoreIcon, size: 18, color: Colors.grey.shade500),
+              const SizedBox(width: 8),
+              Text(restoreLabel, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+              const Spacer(),
+              Icon(Icons.add_circle_outline, size: 18, color: Colors.grey.shade400),
+            ],
+          ),
+        ),
+      );
+    }
+    if (!isEmpty) return child;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.orange.shade200, width: 1.2),
+          ),
+          child: child,
+        ),
+        if (onDismiss != null)
+          Positioned(
+            top: -8,
+            left: -8,
+            child: Material(
+              color: Colors.white,
+              shape: const CircleBorder(),
+              elevation: 1.5,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onDismiss,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(Icons.close, size: 14, color: Colors.grey.shade600),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildServiceHistoryList() {
@@ -3124,96 +3741,146 @@ Future<void> _openGoogleMapsForParkingFallback({
       padding: const EdgeInsets.all(12),
       children: [
         Card(
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: Colors.blue.shade50,
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-               
-                
-                TextField(
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: translate('current_mileage', widget.currentLang),
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.speed),
-                  ),
-                  controller: TextEditingController(text: currentKm),
-                  onChanged: (value) async {
-                    currentKm = value;
-                    await _saveMaintenanceData();
-                    await _recordPerformanceUpdate();
-                    await _refreshAllMaintenanceReminders();
-                  },
+                _serviceSectionHeader(
+                  Icons.directions_car_filled,
+                  translate('vehicle_info_section', widget.currentLang),
+                  Colors.blue.shade700,
                 ),
-                
-                const SizedBox(height: 10),
-                TextField(
-                  keyboardType: TextInputType.phone,
-                  decoration: InputDecoration(
-                    labelText: translate('insurance_phone', widget.currentLang),
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.phone),
-                    hintText: translate('phone_example', widget.currentLang),
-                  ),
-                  controller: TextEditingController(text: insurancePhone),
-                  onChanged: (value) async {
-                    insurancePhone = value;
-                    await _saveMaintenanceData();
+                const SizedBox(height: 12),
+                _dismissibleServiceField(
+                  isDismissed: _dismissedCarModelField,
+                  isEmpty: carModel.trim().isEmpty,
+                  restoreLabel: translate('add_car_model', widget.currentLang),
+                  restoreIcon: Icons.directions_car_outlined,
+                  onDismiss: () {
+                    setState(() => _dismissedCarModelField = true);
+                    _saveMaintenanceData();
                   },
+                  onRestore: () => setState(() => _dismissedCarModelField = false),
+                  child: _serviceTextField(
+                    label: translate('car_model', widget.currentLang),
+                    hint: translate('car_model_hint', widget.currentLang),
+                    icon: Icons.directions_car_outlined,
+                    value: carModel,
+                    onChanged: (value) {
+                      carModel = value;
+                      _saveMaintenanceData();
+                    },
+                  ),
                 ),
-                const SizedBox(height: 10),
-                _isEditingWorkshopPhone || !_isValidPhoneNumber(workshopPhone)
-                    ? TextField(
-                        keyboardType: TextInputType.phone,
-                        decoration: InputDecoration(
-                          labelText: translate('phone_number', widget.currentLang),
-                          border: const OutlineInputBorder(),
-                          prefixIcon: const Icon(Icons.phone),
-                          hintText: translate('phone_example', widget.currentLang),
-                        ),
-                        controller: TextEditingController(text: workshopPhone),
-                        onChanged: (value) async {
-                          workshopPhone = value;
-                          // setState(() {
-                          //   _isEditingWorkshopPhone = !_isValidPhoneNumber(value);
-                          // });
-                          await _saveMaintenanceData();
+                const SizedBox(height: 14),
+                _dismissibleServiceField(
+                  isEmpty: currentKm.trim().isEmpty,
+                  child: _serviceTextField(
+                    label: translate('current_mileage', widget.currentLang,
+                        {'unit': _distanceUnitLabel}),
+                    icon: Icons.speed,
+                    keyboardType: TextInputType.number,
+                    value: _kmStrToDisplayStr(currentKm),
+                    onChanged: (value) async {
+                      currentKm = _displayStrToKmStr(value);
+                      await _saveMaintenanceData();
+                      await _recordPerformanceUpdate();
+                      await _refreshAllMaintenanceReminders();
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          color: Colors.orange.shade50,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _serviceSectionHeader(
+                  Icons.contact_phone_outlined,
+                  translate('contacts_section', widget.currentLang),
+                  Colors.orange.shade800,
+                ),
+                const SizedBox(height: 12),
+                _dismissibleServiceField(
+                  isDismissed: _dismissedInsurancePhoneField,
+                  isEmpty: insurancePhone.trim().isEmpty,
+                  restoreLabel: translate('add_insurance_phone', widget.currentLang),
+                  restoreIcon: Icons.shield_outlined,
+                  onDismiss: () {
+                    setState(() => _dismissedInsurancePhoneField = true);
+                    _saveMaintenanceData();
+                  },
+                  onRestore: () => setState(() => _dismissedInsurancePhoneField = false),
+                  child: _servicePhoneField(
+                    label: translate('insurance_phone', widget.currentLang),
+                    value: insurancePhone,
+                    isEditing: _isEditingInsurancePhone,
+                    onEdit: () => setState(() => _isEditingInsurancePhone = true),
+                    onChanged: (value) => insurancePhone = value,
+                    onCommit: (value) {
+                      insurancePhone = value;
+                      _saveMaintenanceData();
+                      setState(() {
+                        _isEditingInsurancePhone = !_isValidPhoneNumber(value);
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Divider(color: Colors.orange.shade200),
+                const SizedBox(height: 4),
+                _dismissibleServiceField(
+                  isDismissed: _dismissedWorkshopField,
+                  isEmpty: workshopName.trim().isEmpty && workshopPhone.trim().isEmpty,
+                  restoreLabel: translate('add_workshop_info', widget.currentLang),
+                  restoreIcon: Icons.build_outlined,
+                  onDismiss: () {
+                    setState(() => _dismissedWorkshopField = true);
+                    _saveMaintenanceData();
+                  },
+                  onRestore: () => setState(() => _dismissedWorkshopField = false),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _serviceTextField(
+                        label: translate('workshop_name', widget.currentLang),
+                        icon: Icons.build_outlined,
+                        value: workshopName,
+                        onChanged: (value) {
+                          workshopName = value;
+                          _saveMaintenanceData();
                         },
-                      )
-                    : Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.green.shade300),
-                          borderRadius: BorderRadius.circular(10),
-                          color: Colors.green.shade50,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.phone, color: Colors.green),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                workshopPhone,
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.edit, size: 18),
-                              onPressed: () {
-                                setState(() {
-                                  _isEditingWorkshopPhone = true;
-                                });
-                              },
-                              tooltip: translate('edit_phone', widget.currentLang),
-                            ),
-                          ],
-                        ),
                       ),
-                const SizedBox(height: 8),
-
+                      const SizedBox(height: 10),
+                      _servicePhoneField(
+                        label: translate('phone_number', widget.currentLang),
+                        value: workshopPhone,
+                        isEditing: _isEditingWorkshopPhone,
+                        onEdit: () => setState(() => _isEditingWorkshopPhone = true),
+                        onChanged: (value) => workshopPhone = value,
+                        onCommit: (value) {
+                          workshopPhone = value;
+                          _saveMaintenanceData();
+                          setState(() {
+                            _isEditingWorkshopPhone = !_isValidPhoneNumber(value);
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -3224,396 +3891,406 @@ Future<void> _openGoogleMapsForParkingFallback({
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            columnSpacing: 12,
-            headingRowHeight: 48,
-            dataRowHeight: 110,
-            columns: [
-              DataColumn(label: Text(translate('item', widget.currentLang))),
-              //DataColumn(label: Text(translate('mileage', widget.currentLang))),
-              DataColumn(label: Text(translate('date', widget.currentLang))),
-              //DataColumn(label: Text(translate('contact', widget.currentLang))),
-              DataColumn(label: Text(translate('alarm', widget.currentLang))),
-            ],
-            rows: displayItems.asMap().entries.map((entry) {
-              final index = entry.key;
-              final item = entry.value;
-              final isIncomplete = !_isMaintenanceItemConfigured(item);
-              final isHighlighted = highlightedMaintenanceKey.isNotEmpty && highlightedMaintenanceKey == item.key;
-              final bool hideMileage = item.key == 'adac' || item.key == 'tuev' || item.key == 'tuv' || item.key == 'lights';
-              return DataRow(
-                color: isIncomplete
-                    ? MaterialStatePropertyAll(Colors.red.shade50)
-                    : null,
-                cells: [
-
-        DataCell(
-  SizedBox(
-    width: 100, 
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
+        ...displayItems.asMap().entries.map(
+              (entry) => _buildMaintenanceItemCard(entry.value, entry.key, displayItems.length),
+            ),
+        const SizedBox(height: 4),
         Text(
-          _maintenanceTitle(item),
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: isHighlighted ? Colors.red : Colors.black,
-          ),
+          translate('incomplete_row_note', widget.currentLang),
+          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
         ),
-        
-        // 👈 اضافه شدن دراپ‌دان انتخاب فصل مخصوص لاستیک
-        if (item.key == 'tires') ...[
-          const SizedBox(height: 4),
-          DropdownButton<String>(
-            value: item.tireType,
-            isDense: true,
-            style: const TextStyle(fontSize: 11, color: Colors.blue, fontWeight: FontWeight.bold),
-            items: [
-              DropdownMenuItem(
-                value: '4season', 
-                child: Text(translate('tire_4season', widget.currentLang))
-              ),
-              DropdownMenuItem(
-                value: '2season', 
-                child: Text(translate('tire_2season', widget.currentLang))
+      ],
+    );
+  }
+
+  /// بررسیِ «کارکرد واردشده منطقیه یا نه» — قبلاً روی از-دست-دادن-فوکوس
+  /// (Focus.onFocusChange) اجرا می‌شد، یعنی با هر کاری که فوکوس رو از فیلد
+  /// می‌گرفت (مثلاً زدن روی دکمه‌ی تاریخ، که هیچ ربطی به کارکرد نداره) یا حتی
+  /// وسط تایپ (اگه عدد نصفه‌کاره موقتاً از کارکرد فعلی بیشتر بود) هشدار
+  /// می‌داد. حالا فقط وقتی کاربر صریحاً «تمام» رو روی کیبورد بزنه اجرا می‌شه.
+  void _validateMaintenanceMileageEntry(MaintenanceItem item) {
+    if (item.mileage.isEmpty || currentKm.isEmpty) return;
+    int entered = int.tryParse(item.mileage) ?? 0;
+    int current = int.tryParse(currentKm) ?? 0;
+
+    if (entered > current) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(translate('km_error_title', widget.currentLang),
+              style: const TextStyle(color: Colors.red)),
+          content: Text(translate('km_error_body', widget.currentLang, {
+            'entered': _kmToDisplayInt(entered).toString(),
+            'current': _kmStrToDisplayStr(currentKm),
+            'unit': _distanceUnitLabel,
+          })),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  item.mileage = '';
+                  item.isConfigured = _isMaintenanceItemConfigured(item);
+                });
+                _syncMileageController(item);
+                _saveMaintenanceData();
+                Navigator.pop(context);
+              },
+              child: Text(translate('km_error_ok', widget.currentLang)),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if ((entered - current).abs() > _mileageDiffAlertThresholdKm) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(translate('km_diff_title', widget.currentLang),
+              style: const TextStyle(color: Colors.red)),
+          content: Text(translate('km_diff_body', widget.currentLang, {
+            'entered': _kmToDisplayInt(entered).toString(),
+            'current': _kmStrToDisplayStr(currentKm),
+            'threshold': _mileageDiffAlertThresholdDisplay.toString(),
+            'unit': _distanceUnitLabel,
+          })),
+          actions: [
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  item.mileage = '';
+                  item.isConfigured = _isMaintenanceItemConfigured(item);
+                });
+                _syncMileageController(item);
+                _saveMaintenanceData();
+                Navigator.pop(context);
+              },
+              child: Text(translate('km_diff_no', widget.currentLang)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(translate('km_diff_yes', widget.currentLang)),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Widget _buildMaintenanceItemCard(MaintenanceItem item, int index, int itemCount) {
+    final isIncomplete = !_isMaintenanceItemConfigured(item);
+    final isHighlighted =
+        highlightedMaintenanceKey.isNotEmpty && highlightedMaintenanceKey == item.key;
+    final bool hideMileage =
+        item.key == 'adac' || item.key == 'tuev' || item.key == 'tuv' || item.key == 'lights';
+    final bool showWebsiteIcon = item.websiteUrl.trim().isNotEmpty &&
+        !(item.contact.trim().isEmpty && _isValidPhoneNumber(workshopPhone));
+    final bool showCallIcon = item.key != 'tuv';
+    final bool showActionsRow = showWebsiteIcon || showCallIcon;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: isIncomplete ? Colors.red.shade50 : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isHighlighted
+              ? Colors.redAccent
+              : (isIncomplete ? Colors.red.shade100 : Colors.grey.shade200),
+          width: isHighlighted ? 1.6 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 4, offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ─── عنوان + جابه‌جایی/حذف ───
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _maintenanceTitle(item),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: isHighlighted ? Colors.red : Colors.black87,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  icon: const Icon(Icons.arrow_upward, size: 16),
+                  color: index == 0 ? Colors.grey.shade300 : Colors.blue,
+                  onPressed: index == 0 ? null : () => _moveMaintenanceItem(item, -1),
+                  tooltip: translate('move_up', widget.currentLang),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  icon: const Icon(Icons.arrow_downward, size: 16),
+                  color: index == itemCount - 1 ? Colors.grey.shade300 : Colors.blue,
+                  onPressed: index == itemCount - 1 ? null : () => _moveMaintenanceItem(item, 1),
+                  tooltip: translate('move_down', widget.currentLang),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                  onPressed: () => _deleteMaintenanceItem(item),
+                  tooltip: translate('remove_service', widget.currentLang),
+                ),
+              ],
+            ),
+            // 👈 دراپ‌دان انتخاب فصل مخصوص لاستیک
+            if (item.key == 'tires') ...[
+              const SizedBox(height: 2),
+              DropdownButton<String>(
+                value: item.tireType,
+                isDense: true,
+                style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold),
+                items: [
+                  DropdownMenuItem(
+                    value: '4season',
+                    child: Text(translate('tire_4season', widget.currentLang)),
+                  ),
+                  DropdownMenuItem(
+                    value: '2season',
+                    child: Text(translate('tire_2season', widget.currentLang)),
+                  ),
+                ],
+                onChanged: (String? newValue) async {
+                  if (newValue != null) {
+                    setState(() {
+                      item.tireType = newValue;
+                    });
+                    await _saveMaintenanceData();
+                    await _refreshAllMaintenanceReminders();
+                  }
+                },
               ),
             ],
-            onChanged: (String? newValue) async {
-              if (newValue != null) {
-                setState(() {
-                  item.tireType = newValue;
-                });
-                await _saveMaintenanceData();
-                await _refreshAllMaintenanceReminders();
-              }
-            },
-          ),
-        ],
-        
-       if (!hideMileage) ...[
-          const SizedBox(height: 6),
-     
-          SizedBox(
-            width: 100, 
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-             
-                Expanded(
-                  child: Focus(
-                    onFocusChange: (hasFocus) {
-                      if (!hasFocus && item.mileage.isNotEmpty && currentKm.isNotEmpty) {
-                        int entered = int.tryParse(item.mileage) ?? 0;
-                        int current = int.tryParse(currentKm) ?? 0;
-
-                        // 👈 ۱. بررسی عدم ثبت کیلومتر بزرگتر از کیلومتر فعلی
-                            if (entered > current) {
-                              showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text(translate('km_error_title', widget.currentLang), style: const TextStyle(color: Colors.red)),
-                                  content: Text(translate('km_error_body', widget.currentLang, {
-                                    'entered': '$entered',
-                                    'current': currentKm,
-                                  })),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          item.mileage = '';
-                                          item.isConfigured = _isMaintenanceItemConfigured(item);
-                                        });
-                                        _saveMaintenanceData();
-                                        Navigator.pop(context);
-                                      },
-                                      child: Text(translate('km_error_ok', widget.currentLang)),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-
-
-                        if ((entered - current).abs() > 30000) {
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: Text(translate('km_diff_title', widget.currentLang), style: const TextStyle(color: Colors.red)),
-                              content: Text(translate('km_diff_body', widget.currentLang, {
-                                'entered': item.mileage,
-                                'current': currentKm,
-                              })),
-                              actions: [
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      item.mileage = '';
-                                      item.isConfigured = _isMaintenanceItemConfigured(item);
-                                    });
-                                    _saveMaintenanceData();
-                                    Navigator.pop(context);
-                                  },
-                                  child: Text(translate('km_diff_no', widget.currentLang)),
-                                ),
-                                ElevatedButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: Text(translate('km_diff_yes', widget.currentLang)),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      }
-                    },
+            Divider(height: 18, color: Colors.grey.shade200),
+            // ─── کارکرد ───
+            if (!hideMileage) ...[
+              Row(
+                children: [
+                  Icon(Icons.speed, size: 18, color: Colors.grey.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: TextField(
                       keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
                       decoration: InputDecoration(
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8), // 👈 پدینگ کمتر برای فضای تنگ
-                        hintText: translate('km', widget.currentLang, {'val': ''}).trim(),
-                        border: const OutlineInputBorder(),
+                        labelText: translate('service_mileage_label', widget.currentLang,
+                            {'unit': _distanceUnitLabel}),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        hintText: translate(_distanceUnitKey, widget.currentLang, {'val': ''}).trim(),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                      controller: TextEditingController(text: item.mileage),
+                      controller: _mileageControllerFor(item),
                       onTap: () {
                         if (currentKm.isEmpty) {
                           showDialog(
                             context: context,
                             builder: (context) => AlertDialog(
                               title: Text(translate('km_missing_title', widget.currentLang)),
-                              content: Text(translate('km_missing_body', widget.currentLang)),
+                              content: Text(translate('km_missing_body', widget.currentLang,
+                                  {'unit': _distanceUnitLabel})),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context),
                                   child: Text(translate('km_missing_ok', widget.currentLang)),
                                 )
                               ],
-                            )
+                            ),
                           );
                           FocusScope.of(context).unfocus();
                         }
                       },
                       onChanged: (value) async {
-                        if (currentKm.isNotEmpty) {
-                          int entered = int.tryParse(value) ?? 0;
-                          int current = int.tryParse(currentKm) ?? 0;
-
-                          if (entered <= current || value.isEmpty) {
-                          item.mileage = value;
-                          item.isConfigured = _isMaintenanceItemConfigured(item);
-                          await _saveMaintenanceData();
-                          await _updateMaintenanceReminder(item);
-                          }
-                        }
+                        if (currentKm.isEmpty) return;
+                        // هر چی کاربر تایپ می‌کنه بدون قید و شرط ذخیره می‌شه؛
+                        // اعتبارسنجیِ «خیلی متفاوت با کارکرد فعلی» دیگه با از
+                        // دست دادن فوکوس اجرا نمی‌شه (چون هر کاری که فوکوس رو
+                        // می‌گرفت، مثل زدن روی تاریخ، هم هشدار نشون می‌داد) —
+                        // فقط وقتی کاربر صریحاً «تمام» رو بزنه چک می‌شه.
+                        item.mileage = _displayStrToKmStr(value);
+                        item.isConfigured = _isMaintenanceItemConfigured(item);
+                        await _saveMaintenanceData();
+                        await _updateMaintenanceReminder(item);
+                      },
+                      onSubmitted: (_) {
+                        FocusScope.of(context).unfocus();
+                        _validateMaintenanceMileageEntry(item);
                       },
                     ),
                   ),
-                ),
-               
-                SizedBox(
-                  width: 28,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    splashRadius: 15,
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
                     icon: const Icon(Icons.refresh, size: 20, color: Colors.lightGreen),
                     tooltip: translate('set_km_at_current', widget.currentLang),
                     onPressed: () async {
                       if (currentKm.isEmpty) {
-                         ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(translate('km_enter_current_first', widget.currentLang)))
-                         );
-                         return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(translate('km_enter_current_first',
+                                  widget.currentLang, {'unit': _distanceUnitLabel}))),
+                        );
+                        return;
                       }
                       setState(() {
                         item.mileage = currentKm;
                         item.isConfigured = _isMaintenanceItemConfigured(item);
                       });
+                      _syncMileageController(item);
                       await _saveMaintenanceData();
                       await _updateMaintenanceReminder(item);
                     },
                   ),
+                ],
+              ),
+              const SizedBox(height: 10),
+            ],
+            // ─── تاریخ ───
+            Row(
+              children: [
+                Icon(Icons.event_outlined, size: 18, color: Colors.grey.shade600),
+                const SizedBox(width: 8),
+                Text(
+                  translate('last_service_date_label', widget.currentLang),
+                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
                 ),
-              ],
-            ),
-          ),
-        ],
-
-      ],
-    ),
-  ),
-),
-
-   
-             
-  DataCell(
-  SizedBox(
-    width: 120, // کمی عریض‌تر برای جا شدن متن تاریخ
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            IconButton(
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-              icon: const Icon(Icons.calendar_today, size: 18),
-              onPressed: () => _pickMaintenanceDate(item),
-            ),
-            // نمایش تاریخ ثبت شده در صورت وجود
-            if (item.serviceDate.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(left: 6),
-                child: Text(
-                  item.serviceDate,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade800,
+                const Spacer(),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  ),
+                  onPressed: () => _pickMaintenanceDate(item),
+                  icon: const Icon(Icons.calendar_today, size: 14),
+                  label: Text(
+                    item.serviceDate.isEmpty
+                        ? translate('no_date_set', widget.currentLang)
+                        : item.serviceDate,
+                    style: const TextStyle(fontSize: 12),
                   ),
                 ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (item.websiteUrl.trim().isNotEmpty && !(item.contact.trim().isEmpty && _isValidPhoneNumber(workshopPhone)))
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.link, color: Colors.blue, size: 18),
-                onPressed: () => _openMaintenanceLink(item),
-                tooltip: translate('open_website', widget.currentLang),
-              ),
-            if (item.websiteUrl.trim().isNotEmpty && (item.key == 'tuv' || !(item.contact.trim().isEmpty && _isValidPhoneNumber(workshopPhone))))
-              const SizedBox(width: 8),
-
-            if (item.key != 'tuv')
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: const Icon(Icons.phone, color: Colors.green, size: 18),
-                onPressed: () => _callMaintenanceContact(item),
-                tooltip: translate('call', widget.currentLang),
-              ),
-          ],
-        ),
-      ],
-    ),
-  ),
-),
-                  
-                  DataCell(
-                    SizedBox(
-                      width: 160,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-GestureDetector(
-  onTap: () async {
-    if (!item.alarmEnabled) {
-        final is2SeasonTire = (item.key == 'tires' && item.tireType == '2season');
-        if (item.serviceDate.trim().isEmpty && !is2SeasonTire) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            title: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                const SizedBox(width: 8),
-                Text(translate('date_required_title', widget.currentLang)),
               ],
             ),
-            content: Text(translate('date_required_body', widget.currentLang)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(translate('ok', widget.currentLang)),
+            if (showActionsRow) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  if (showWebsiteIcon)
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                      ),
+                      onPressed: () => _openMaintenanceLink(item),
+                      icon: const Icon(Icons.link, color: Colors.blue, size: 16),
+                      label: Text(translate('open_website', widget.currentLang),
+                          style: const TextStyle(fontSize: 12, color: Colors.blue)),
+                    ),
+                  if (showCallIcon)
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                      ),
+                      onPressed: () => _callMaintenanceContact(item),
+                      icon: const Icon(Icons.phone, color: Colors.green, size: 16),
+                      label: Text(translate('call', widget.currentLang),
+                          style: const TextStyle(fontSize: 12, color: Colors.green)),
+                    ),
+                ],
               ),
             ],
-          ),
-        );
-        return; 
-      }
-      final allowed = await _ensureNotificationConsentAndOsPermission();
-      if (!allowed || !mounted) return;
-    }
+            Divider(height: 18, color: Colors.grey.shade200),
+            // ─── یادآور ───
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    if (!item.alarmEnabled) {
+                      final is2SeasonTire = (item.key == 'tires' && item.tireType == '2season');
+                      if (item.serviceDate.trim().isEmpty && !is2SeasonTire) {
+                        showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                            title: Row(
+                              children: [
+                                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                                const SizedBox(width: 8),
+                                Text(translate('date_required_title', widget.currentLang)),
+                              ],
+                            ),
+                            content: Text(translate('date_required_body', widget.currentLang)),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: Text(translate('ok', widget.currentLang)),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
+                      }
+                      final allowed = await _ensureNotificationConsentAndOsPermission();
+                      if (!allowed || !mounted) return;
+                    }
 
-    setState(() {
-      item.alarmEnabled = !item.alarmEnabled;
-      item.isConfigured = _isMaintenanceItemConfigured(item);
-    });
-    await _saveMaintenanceData();
-    await _updateMaintenanceReminder(item);
-  },
-  child: Icon(
-    item.alarmEnabled ? Icons.notifications_active : Icons.notifications_off,
-    size: 22,
-    color: item.alarmEnabled ? Colors.amber.shade700 : Colors.grey.shade400,
-  ),
-),
-                             const SizedBox(width: 8), // یک فاصله مناسب بین آیکون‌ها
-        
-                              // دکمه‌ی تنظیم زمان آلارم (تنظیم یادآور)
-                              IconButton(
-                                icon: Icon(
-                                  item.alarmEnabled ? Icons.alarm_on : Icons.alarm_off,
-                                  color: item.alarmEnabled ? Colors.green : Colors.grey,
-                                ),
-                                onPressed: () => _showAlarmDialog(item),
-                                tooltip: translate('set_reminder', widget.currentLang),
-                              ),
-                            ],
-                          ),
-                          
-                          Row(
-                            //mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_upward, size: 15),
-                                    color: index == 0 ? Colors.grey : Colors.blue,
-                                    onPressed: index == 0 ? null : () => _moveMaintenanceItem(item, -1),
-                                    tooltip: translate('move_up', widget.currentLang),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_downward, size: 15),
-                                    color: index == displayItems.length - 1 ? Colors.grey : Colors.blue,
-                                    onPressed: index == displayItems.length - 1 ? null : () => _moveMaintenanceItem(item, 1),
-                                    tooltip: translate('move_down', widget.currentLang),
-                                  ),
-                                ],
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 15),
-                                onPressed: () => _deleteMaintenanceItem(item),
-                                tooltip: translate('remove_service', widget.currentLang),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                    setState(() {
+                      item.alarmEnabled = !item.alarmEnabled;
+                      item.isConfigured = _isMaintenanceItemConfigured(item);
+                    });
+                    await _saveMaintenanceData();
+                    await _updateMaintenanceReminder(item);
+                  },
+                  child: Icon(
+                    item.alarmEnabled ? Icons.notifications_active : Icons.notifications_off,
+                    size: 22,
+                    color: item.alarmEnabled ? Colors.amber.shade700 : Colors.grey.shade400,
                   ),
-                ],
-              );
-            }).toList(),
-          ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  item.alarmEnabled
+                      ? translate('reminder_status_on', widget.currentLang)
+                      : translate('reminder_status_off', widget.currentLang),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: item.alarmEnabled ? Colors.amber.shade800 : Colors.grey.shade500,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(
+                    item.alarmEnabled ? Icons.alarm_on : Icons.alarm_off,
+                    color: item.alarmEnabled ? Colors.green : Colors.grey,
+                  ),
+                  onPressed: () => _showAlarmDialog(item),
+                  tooltip: translate('set_reminder', widget.currentLang),
+                ),
+              ],
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          translate('incomplete_row_note', widget.currentLang),
-          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-        ),
-      ],
+      ),
     );
   }
 
@@ -3927,13 +4604,13 @@ Widget build(BuildContext context) {
               bool isPremium = PurchaseManager().isPremiumUser.value;
 
               // 📄 فاز ۲ و بالاتر (۳۰ روز به بعد): تبلیغ بین‌صفحه‌ای موقع تغییر تب
-              if (!isPremium && tier >= 2) {
+              if (!isPremium && tier >= 2 && !kIsWeb) {
                 AppAdManager().showInterstitialAd(() {
                   _selectMainTab(index);
                 });
               } else {
                 _selectMainTab(index);
-              }             
+              }
 
             },
             items: [ 
@@ -3978,39 +4655,47 @@ Widget build(BuildContext context) {
 }
 
   Widget _buildClassicFuelPage() {
+    Widget fuelDropdown = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: _dropdownFuelValue,
+          isExpanded: true,
+          icon: const Icon(Icons.arrow_drop_down_circle, color: Colors.blue),
+          borderRadius: BorderRadius.circular(12),
+          items: _fuelTypeMenuItems(compact: false),
+          onChanged: (String? newValue) {
+            if (newValue != null) _onFuelTypeChanged(newValue);
+          },
+        ),
+      ),
+    );
+    if (_onboardingStep == 1) {
+      fuelDropdown = _OnboardingSpotlight(
+        message: translate('onboard_select_fuel', widget.currentLang),
+        child: fuelDropdown,
+      );
+    }
+
     return SingleChildScrollView(
       child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200, width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _dropdownFuelValue,
-                  isExpanded: true,
-                  icon: const Icon(Icons.arrow_drop_down_circle, color: Colors.blue),
-                  borderRadius: BorderRadius.circular(12),
-                  items: _fuelTypeMenuItems(compact: false),
-                  onChanged: (String? newValue) {
-                    if (newValue != null) _onFuelTypeChanged(newValue);
-                  },
-                ),
-              ),
-            ),
+            child: fuelDropdown,
           ),
           _buildPriceScopeBanner(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8)),
           Padding(
@@ -4063,14 +4748,31 @@ Widget build(BuildContext context) {
                         const SizedBox(width: 4),
                         Expanded(
                           flex: 4,
-                          child: OutlinedButton.icon(
-                            onPressed: _searchNearby,
-                            icon: const Icon(Icons.my_location, size: 18),
-                            label: Text(
-                              translate('location', widget.currentLang),
-                              style: TextStyle(fontSize: 12 * _fontScale),
-                            ),
-                          ),
+                          child: Builder(builder: (context) {
+                            final locationButton = OutlinedButton.icon(
+                              onPressed: _searchNearby,
+                              icon: const Icon(Icons.my_location, size: 18),
+                              label: Text(
+                                translate('location', widget.currentLang),
+                                style: TextStyle(fontSize: 12 * _fontScale),
+                              ),
+                            );
+                            if (_onboardingStep == 2) {
+                              return _OnboardingSpotlight(
+                                message: translate(
+                                    'onboard_tap_location', widget.currentLang),
+                                child: locationButton,
+                              );
+                            }
+                            if (_onboardingStep == 3) {
+                              return _OnboardingWaitHint(
+                                message: translate(
+                                    'onboard_loading_stations', widget.currentLang),
+                                child: locationButton,
+                              );
+                            }
+                            return locationButton;
+                          }),
                         ),
                         const SizedBox(width: 8),
                         Column(
@@ -4363,10 +5065,45 @@ Widget build(BuildContext context) {
       selectedFuel: selectedFuel,
       stations: stations,
       fontScale: _fontScale,
+      onNavigate: _navigateToDealStation,
     );
   }
 
+  bool get _dealsAvailableHere =>
+      FuelDealsService.dealsSupported(_activeFuelCountryCode) &&
+      selectedFuel != 'parking' &&
+      selectedFuel != 'ev';
+
+  Future<void> _navigateToDealStation({
+    double? lat,
+    double? lng,
+    String? query,
+  }) async {
+    if (lat != null && lng != null) {
+      await _openMap(lat, lng);
+      return;
+    }
+    if (query == null || query.isEmpty) return;
+    final allowed = await _ensureNavigationConsentAndOsPermission();
+    if (!allowed || !mounted) return;
+    await _openNavigation(searchQuery: query);
+  }
+
+  /// بعد از خرید موفق، صفحهٔ تخفیف‌ها را خودکار باز می‌کند تا کاربر بلافاصله
+  /// ببیند پرمیوم چه چیزی برایش باز کرده است. تاخیر کوتاه برای بسته شدن
+  /// کامل پنجرهٔ پرداخت استور است.
+  Future<void> _openDealsAfterPurchase() async {
+    if (!_dealsAvailableHere) return;
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted || !PurchaseManager().isPremiumUser.value) return;
+    await _openFuelDealsSheet();
+  }
+
   Future<void> _showDealsPremiumGateDialog() async {
+    final cc = _activeFuelCountryCode;
+    final hasLoyalty = FuelDealsService.loyaltyForCountry(cc).isNotEmpty;
+    final hasPayApps = FuelDealsService.payAtPumpForCountry(cc).isNotEmpty;
+    final hasTimeTips = FuelDealsService.hasTimeTips(cc);
     final buy = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -4387,21 +5124,38 @@ Widget build(BuildContext context) {
                 style: const TextStyle(height: 1.45),
               ),
               const SizedBox(height: 12),
-              _dealsPremiumBullet(
-                Icons.loyalty,
-                translate('deals_premium_b1', widget.currentLang),
-              ),
-              _dealsPremiumBullet(
-                Icons.phone_android,
-                translate('deals_premium_b2', widget.currentLang),
-              ),
-              _dealsPremiumBullet(
-                Icons.schedule,
-                translate('deals_premium_b3', widget.currentLang),
-              ),
+              // فقط چیزهایی که در کشور فعلی واقعاً در دسترس است را نشان بده.
+              if (hasLoyalty)
+                _dealsPremiumBullet(
+                  Icons.loyalty,
+                  translate('deals_premium_b1', widget.currentLang),
+                ),
+              if (hasPayApps)
+                _dealsPremiumBullet(
+                  Icons.phone_android,
+                  translate('deals_premium_b2', widget.currentLang),
+                ),
+              if (hasTimeTips)
+                _dealsPremiumBullet(
+                  Icons.schedule,
+                  translate('deals_premium_b3', widget.currentLang),
+                ),
               _dealsPremiumBullet(
                 Icons.campaign,
                 translate('deals_premium_b4', widget.currentLang),
+              ),
+              _dealsPremiumBullet(
+                Icons.help_outline,
+                translate('deals_premium_b5', widget.currentLang),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                translate('deals_premium_note', widget.currentLang),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  height: 1.35,
+                  color: Colors.grey.shade700,
+                ),
               ),
             ],
           ),
@@ -4426,12 +5180,10 @@ Widget build(BuildContext context) {
         ],
       ),
     );
+    // buyPremium() فقط پنجرهٔ خرید استور را باز می‌کند و قبل از تکمیل خرید
+    // برمی‌گردد؛ باز کردن صفحهٔ تخفیف‌ها بعد از خرید موفق در onSuccess انجام می‌شود.
     if (buy == true) {
       await PurchaseManager().buyPremium();
-      if (!mounted) return;
-      if (PurchaseManager().isPremiumUser.value) {
-        await _openFuelDealsSheet();
-      }
     }
   }
 
@@ -4697,6 +5449,13 @@ Widget build(BuildContext context) {
           ),
         ),
         _buildPriceScopeBanner(padding: const EdgeInsets.only(top: 6)),
+        if (_onboardingStep == 4 && _cheapestOnboardStationKey != null) ...[
+          const SizedBox(height: 6),
+          _OnboardingBanner(
+            message: translate('onboard_select_cheapest', widget.currentLang),
+            onDismiss: _completeOnboarding,
+          ),
+        ],
         if (showDrawer) ...[
           const SizedBox(height: 6),
           Material(
@@ -5228,6 +5987,9 @@ Widget build(BuildContext context) {
   }
 
   void _onFuelTypeChanged(String newFuelType) {
+    if (_onboardingStep == 1) {
+      setState(() => _onboardingStep = 2);
+    }
     if (selectedFuel == newFuelType) return;
 
     setState(() {
@@ -5416,17 +6178,46 @@ Widget _buildEmailNotificationOption() {
   }
 
   Widget _wrapMap({required bool fill, required Widget child}) {
+    final bool showStationsLoadingHint = _isLoadingMapStations || isLoading;
     final painted = Stack(
       children: [
         Positioned.fill(child: RepaintBoundary(child: child)),
-        if (_isLoadingMapStations)
-          const Positioned(
+        if (showStationsLoadingHint)
+          Positioned(
             top: 8,
-            right: 8,
-            child: SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2),
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Material(
+                color: const Color(0xFF212121),
+                borderRadius: BorderRadius.circular(20),
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFC107)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        translate('onboard_loading_stations', widget.currentLang),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
       ],
@@ -5542,7 +6333,10 @@ Widget _buildEmailNotificationOption() {
   }
 
 Widget _buildProfessionalMap({bool fill = true}) {
-  return _wrapMap(
+  final String? cheapestKey =
+      _onboardingStep == 4 ? _cheapestOnboardStationKey : null;
+
+  final mapWidget = _wrapMap(
     fill: fill,
     child: FlutterMap(
       mapController: _mapController,
@@ -5578,37 +6372,66 @@ Widget _buildProfessionalMap({bool fill = true}) {
             ),
             for (final s in _visibleMapStations)
               if (_pointOfStation(s) != null)
-                Marker(
-                  width: 72 * _fontScale,
-                  height: 36 * _fontScale,
-                  point: _pointOfStation(s)!,
-                  child: GestureDetector(
-                    onTap: () {
-                      final point = _pointOfStation(s)!;
-                      _openMap(point.latitude, point.longitude);
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: s['isOpen'] == true ? Colors.blueAccent : Colors.blueGrey,
-                        borderRadius: BorderRadius.circular(10 * _fontScale),
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _mapMarkerLabel(s),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12 * _fontScale,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                _buildFuelStationMarker(s, cheapestKey),
           ],
         ),
       ],
+    ),
+  );
+
+  return mapWidget;
+}
+
+Marker _buildFuelStationMarker(dynamic s, String? cheapestKey) {
+  final bool isCheapest =
+      cheapestKey != null && _stationKey(s) == cheapestKey;
+  final bool isDimmed = cheapestKey != null && !isCheapest;
+
+  return Marker(
+    width: (isCheapest ? 88 : 72) * _fontScale,
+    height: (isCheapest ? 44 : 36) * _fontScale,
+    point: _pointOfStation(s)!,
+    child: GestureDetector(
+      onTap: () {
+        final point = _pointOfStation(s)!;
+        if (_onboardingStep == 4) _completeOnboarding();
+        _openMap(point.latitude, point.longitude);
+      },
+      child: AnimatedOpacity(
+        opacity: isDimmed ? 0.3 : 1.0,
+        duration: const Duration(milliseconds: 300),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isCheapest
+                ? const Color(0xFFFFC107)
+                : (s['isOpen'] == true ? Colors.blueAccent : Colors.blueGrey),
+            borderRadius: BorderRadius.circular(10 * _fontScale),
+            border: Border.all(
+              color: isCheapest ? Colors.redAccent : Colors.white,
+              width: isCheapest ? 3 : 2,
+            ),
+            boxShadow: isCheapest
+                ? [
+                    BoxShadow(
+                      color: Colors.orange.withOpacity(0.7),
+                      blurRadius: 10,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Center(
+            child: Text(
+              _mapMarkerLabel(s),
+              style: TextStyle(
+                color: isCheapest ? Colors.black : Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: (isCheapest ? 13 : 12) * _fontScale,
+              ),
+            ),
+          ),
+        ),
+      ),
     ),
   );
 }

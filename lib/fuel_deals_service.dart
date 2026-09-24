@@ -76,6 +76,10 @@ class CrowdDeal {
   final double? lat;
   final double? lng;
 
+  /// true وقتی کاربر هنگام ثبت، پمپ را از لیست نقشه انتخاب کرده و [lat]/[lng]
+  /// مختصات دقیق همان پمپ است؛ تخفیف‌های قدیمی فقط مرکز نقشه را داشتند.
+  final bool hasStationLocation;
+
   const CrowdDeal({
     required this.id,
     required this.countryCode,
@@ -87,6 +91,7 @@ class CrowdDeal {
     required this.createdAt,
     this.lat,
     this.lng,
+    this.hasStationLocation = false,
   });
 
   Map<String, dynamic> toMap() => {
@@ -100,6 +105,7 @@ class CrowdDeal {
         'createdAt': createdAt.toIso8601String(),
         if (lat != null) 'lat': lat,
         if (lng != null) 'lng': lng,
+        if (hasStationLocation) 'stationLocated': true,
       };
 
   static CrowdDeal? fromMap(Map raw) {
@@ -122,6 +128,7 @@ class CrowdDeal {
       createdAt: created,
       lat: (raw['lat'] as num?)?.toDouble(),
       lng: (raw['lng'] as num?)?.toDouble(),
+      hasStationLocation: raw['stationLocated'] == true,
     );
   }
 }
@@ -145,26 +152,16 @@ class FuelDealsService {
     return Hive.openBox(_boxName);
   }
 
+  /// فقط کشورهایی که واقعاً محتوای آماده (کوپن وفاداری، اپ پرداخت یا راهنمای
+  /// زمانی) دارند؛ وگرنه کاربر برای یک صفحهٔ خالی پرمیوم می‌خرد.
   static bool dealsSupported(String countryCode) {
-    final c = countryCode.trim().toLowerCase();
-    return c == 'de' ||
-        c == 'at' ||
-        c == 'us' ||
-        c == 'ca' ||
-        {
-          'fr',
-          'nl',
-          'be',
-          'lu',
-          'uk',
-          'gb',
-          'ie',
-          'es',
-          'it',
-          'pt',
-          'ch',
-        }.contains(c);
+    return loyaltyForCountry(countryCode).isNotEmpty ||
+        payAtPumpForCountry(countryCode).isNotEmpty ||
+        hasTimeTips(countryCode);
   }
+
+  static bool hasTimeTips(String countryCode) =>
+      countryCode.trim().toLowerCase() == 'de';
 
   // ─── 1) Loyalty coupons ───────────────────────────────────────────
 
@@ -494,6 +491,7 @@ class FuelDealsService {
     required DateTime expiresAt,
     double? lat,
     double? lng,
+    bool hasStationLocation = false,
     bool premiumUnlocked = true,
   }) async {
     if (!premiumUnlocked) {
@@ -533,6 +531,7 @@ class FuelDealsService {
       createdAt: DateTime.now(),
       lat: lat,
       lng: lng,
+      hasStationLocation: hasStationLocation,
     );
 
     // Local first

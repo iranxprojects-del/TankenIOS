@@ -22,9 +22,12 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    /*signingConfigs {
+    signingConfigs {
         create("release") {
-            // 2. استفاده از getProperty برای امنیت بیشتر
+            // مقادیر واقعی از android/key.properties خونده می‌شن (که توی
+            // .gitignore هست و هیچ‌وقت به گیت‌هاب پوش نمی‌شه) — قبلاً این
+            // مقادیر مستقیم و به‌صورت متن ساده اینجا نوشته شده بودن که یعنی
+            // با هر پوش، پسورد کیستور توی تاریخچه‌ی گیت لو می‌رفت.
             val storeFileProp = keystoreProperties.getProperty("storeFile")
             if (storeFileProp != null) {
                 storeFile = file(storeFileProp)
@@ -32,15 +35,6 @@ android {
             storePassword = keystoreProperties.getProperty("storePassword")
             keyAlias = keystoreProperties.getProperty("keyAlias")
             keyPassword = keystoreProperties.getProperty("keyPassword")
-        }
-    }*/
-
-    signingConfigs {
-        create("release") {
-            storeFile = file("/home/ahmad/upload-keystore.jks") // مسیر کامل فایل jks
-            storePassword = "Ahm5725del@" // رمز خود را اینجا بنویسید
-            keyAlias = "upload"
-            keyPassword = "Ahm5725del@" // رمز خود را اینجا بنویسید
         }
     }
 
@@ -58,19 +52,6 @@ android {
         versionName = flutter.versionName
         multiDexEnabled = true
     }
-
-    /*buildTypes {
-        getByName("release") {
-            // 3. اگر فایل موجود بود امضا کن، در غیر این صورت امضا نکن (برای جلوگیری از کرش بیلد)
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
-            
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-    }*/
 
     buildTypes {
         getByName("release") {
