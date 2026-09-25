@@ -312,11 +312,53 @@ class NotificationService {
       );
     }
 
+    // اگر دسترسی "زنگ‌ها و یادآورهای دقیق" (Alarms & reminders) روی اندروید
+    // گرفته نشده باشد یا توسط گوگل‌پلی به‌صورت خودکار لغو شده باشد (این برای
+    // اپ‌هایی که در دسته‌ی ساعت/زنگ‌هشدار پلی ثبت نشده‌اند رایج است)، هم حالت
+    // alarmClock و هم exactAllowWhileIdle می‌توانند بی‌صدا شکست بخورند. بدون
+    // یک راه فرار، هیچ نوتیفیکیشنی هرگز نمایش داده نمی‌شود. به همین دلیل در
+    // نهایت به حالت inexact سقوط می‌کنیم که نیازی به آن مجوز خاص ندارد (ممکن
+    // است چند دقیقه دیرتر برسد ولی حتماً می‌رسد).
     try {
       await schedule(AndroidScheduleMode.alarmClock);
     } catch (e) {
       debugPrint('alarmClock schedule failed, falling back to exact: $e');
-      await schedule(AndroidScheduleMode.exactAllowWhileIdle);
+      try {
+        await schedule(AndroidScheduleMode.exactAllowWhileIdle);
+      } catch (e2) {
+        debugPrint('exactAllowWhileIdle schedule failed, falling back to inexact: $e2');
+        await schedule(AndroidScheduleMode.inexactAllowWhileIdle);
+      }
+    }
+  }
+
+  /// آیا اندروید به این اپ اجازه‌ی زنگ‌های دقیق (SCHEDULE_EXACT_ALARM) را
+  /// می‌دهد؟ روی iOS/سایر پلتفرم‌ها همیشه true برمی‌گردد چون این محدودیت فقط
+  /// مخصوص اندروید ۱۲+ است.
+  static Future<bool> canScheduleExactAlarms() async {
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImplementation == null) return true;
+    try {
+      return await androidImplementation.canScheduleExactNotifications() ?? true;
+    } catch (e) {
+      debugPrint('canScheduleExactNotifications check failed: $e');
+      return true;
+    }
+  }
+
+  /// مستقیماً صفحه‌ی تنظیمات "زنگ‌ها و یادآورها" (Alarms & reminders) مخصوص
+  /// این اپ را در اندروید باز می‌کند (از طریق اینتنت رسمی
+  /// ACTION_REQUEST_SCHEDULE_EXACT_ALARM که خود پلاگین پیاده‌سازی کرده است).
+  static Future<void> openExactAlarmSettings() async {
+    final androidImplementation = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    try {
+      await androidImplementation?.requestExactAlarmsPermission();
+    } catch (e) {
+      debugPrint('Failed to open exact alarm settings: $e');
     }
   }
 

@@ -642,6 +642,21 @@ const Map<String, Map<String, String>> localizedStrings = {
     'en': 'Terms of Use', 'de': 'Nutzungsbedingungen', 'fa': 'شرایط استفاده (Terms of Use)', 'tr': 'Kullanım Şartları',
     'ru': 'Условия использования', 'ar': 'شروط الاستخدام', 'uk': 'Умови використання', 'ro': 'Termeni de utilizare', 'pl': 'Warunki korzystania',
   },
+  'exact_alarm_disabled_title': {
+    'en': 'Reminders may arrive late', 'de': 'Erinnerungen könnten verspätet ankommen', 'fa': 'یادآورها ممکن است با تاخیر برسند', 'tr': 'Hatırlatıcılar geç gelebilir',
+    'ru': 'Напоминания могут приходить с задержкой', 'ar': 'قد تصل التذكيرات متأخرة', 'uk': 'Нагадування можуть надходити із затримкою', 'ro': 'Memento-urile pot ajunge cu întârziere', 'pl': 'Przypomnienia mogą docierać z opóźnieniem',
+  },
+  'exact_alarm_disabled_msg': {
+    'en': 'To make sure service reminders always arrive exactly on time, please allow "Alarms & reminders" for this app in system settings.',
+    'de': 'Damit Service-Erinnerungen immer pünktlich ankommen, erlauben Sie bitte "Alarme & Erinnerungen" für diese App in den Systemeinstellungen.',
+    'fa': 'برای اینکه یادآورهای سرویس همیشه سر وقت برسند، لطفاً در تنظیمات سیستم، دسترسی "زنگ‌ها و یادآورها" را برای این اپ فعال کنید.',
+    'tr': 'Servis hatırlatıcılarının her zaman tam zamanında gelmesi için lütfen sistem ayarlarından bu uygulama için "Alarmlar ve hatırlatıcılar" iznini verin.',
+    'ru': 'Чтобы напоминания о сервисе всегда приходили вовремя, разрешите этому приложению доступ "Будильники и напоминания" в системных настройках.',
+    'ar': 'لضمان وصول تذكيرات الخدمة دائمًا في الوقت المحدد، يرجى السماح بإذن "التنبيهات والتذكيرات" لهذا التطبيق من إعدادات النظام.',
+    'uk': 'Щоб нагадування про сервіс завжди приходили вчасно, надайте цьому додатку дозвіл "Будильники та нагадування" в системних налаштуваннях.',
+    'ro': 'Pentru ca memento-urile de service să ajungă mereu la timp, vă rugăm să permiteți "Alarme și memento-uri" pentru această aplicație din setările sistemului.',
+    'pl': 'Aby przypomnienia o serwisie zawsze docierały na czas, zezwól tej aplikacji na dostęp "Alarmy i przypomnienia" w ustawieniach systemowych.',
+  },
   'set_price_alert_title': {
     'en': 'Set Price Drop Alert', 'de': 'Preisalarm einstellen', 'fa': 'تنظیم هشدار افت قیمت', 'tr': 'Fiyat Düşüş Alarmı Kur',
     'ru': 'Установить оповещение о снижении цены', 'ar': 'تعيين تنبيه انخفاض السعر', 'uk': 'Встановити сповіщення про зниження ціни', 'ro': 'Setează alerta de preț', 'pl': 'Ustaw alert o spadku ceny',

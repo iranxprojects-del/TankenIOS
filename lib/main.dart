@@ -993,6 +993,17 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
       status = await Permission.notification.request();
     }
     if (status.isGranted || status.isLimited || pluginGranted) {
+      // مجوز نمایش نوتیفیکیشن هست، اما بدون دسترسی "زنگ‌های دقیق" اندروید
+      // ممکن است سیستم زمان‌بندی دقیق را بی‌صدا رد کند (خصوصاً اگر گوگل‌پلی
+      // آن را برای این اپ خودکار لغو کرده باشد) و کاربر هرگز نوتیفیکیشنی
+      // نبیند. اینجا فقط هشدار می‌دهیم؛ خود زمان‌بندی یک راه فرار inexact هم
+      // دارد که در بدترین حالت بازهم نوتیفیکیشن می‌رسد.
+      if (!kIsWeb && Platform.isAndroid && mounted) {
+        final exactAllowed = await NotificationService.canScheduleExactAlarms();
+        if (!exactAllowed && mounted) {
+          _showExactAlarmSettingsDialog();
+        }
+      }
       return true;
     }
     if (mounted) {
@@ -1004,6 +1015,34 @@ Future<bool> _showLegalLocationDisclaimer(BuildContext context) async {
       _showNotificationSettingsDialog();
     }
     return false;
+  }
+
+  void _showExactAlarmSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            translate('exact_alarm_disabled_title', widget.currentLang),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(translate('exact_alarm_disabled_msg', widget.currentLang)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(translate('cancel', widget.currentLang)),
+            ),
+            TextButton(
+              onPressed: () {
+                NotificationService.openExactAlarmSettings();
+                Navigator.of(context).pop();
+              },
+              child: Text(translate('open_settings', widget.currentLang)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
 
@@ -2833,17 +2872,23 @@ Future<void> _refreshAllMaintenanceReminders() async {
       scheduleTime = scheduleTime.add(const Duration(days: 1));
     }
 
-    await NotificationService.scheduleMaintenanceReminder(
-      itemKey: 'master',
-      title: translate('snooze_reminder_title', widget.currentLang),
-      body: translate('service_due_notice', widget.currentLang),
-      firstRun: scheduleTime,
-      repeatDaily: true,
-      payload: 'master',
-      btnOpenText: translate('btn_open', widget.currentLang),
-      btnDeleteText: translate('btn_delete', widget.currentLang),
-      btnSnoozeText: translate('btn_snooze', widget.currentLang),
-    );
+    try {
+      await NotificationService.scheduleMaintenanceReminder(
+        itemKey: 'master',
+        title: translate('snooze_reminder_title', widget.currentLang),
+        body: translate('service_due_notice', widget.currentLang),
+        firstRun: scheduleTime,
+        repeatDaily: true,
+        payload: 'master',
+        btnOpenText: translate('btn_open', widget.currentLang),
+        btnDeleteText: translate('btn_delete', widget.currentLang),
+        btnSnoozeText: translate('btn_snooze', widget.currentLang),
+      );
+    } catch (e) {
+      // اگر زمان‌بندی به هر دلیلی (مثلاً محدودیت سیستم‌عامل) شکست بخورد، این
+      // خطا نباید بی‌صدا گم شود؛ حداقل در لاگ ثبت می‌شود تا قابل ردیابی باشد.
+      debugPrint('Maintenance reminder scheduling failed: $e');
+    }
   } else {
     // ✅ اگر هیچ قطعه‌ای هشدار نداشت، آلارم اصلی خاموش می‌شود
     await NotificationService.cancelMaintenanceNotification('master');
