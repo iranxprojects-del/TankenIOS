@@ -626,6 +626,22 @@ const Map<String, Map<String, String>> localizedStrings = {
     'en': 'Connecting to Google Play...', 'de': 'Verbindung zu Google Play herstellen...', 'fa': 'در حال برقراری ارتباط با گوگل‌پلی...', 'tr': 'Google Play\'e bağlanılıyor...',
     'ru': 'Подключение к Google Play...', 'ar': 'الاتصال بـ Google Play...', 'uk': 'Підключення до Google Play...', 'ro': 'Se conectează la Google Play...', 'pl': 'Łączenie z Google Play...',
   },
+  'iap_timeout': {
+    'en': 'The purchase process timed out. Please try again.', 'de': 'Der Kaufvorgang hat das Zeitlimit überschritten. Bitte versuchen Sie es erneut.', 'fa': 'زمان فرآیند خرید به پایان رسید. لطفاً دوباره تلاش کنید.', 'tr': 'Satın alma işlemi zaman aşımına uğradı. Lütfen tekrar deneyin.',
+    'ru': 'Время ожидания покупки истекло. Пожалуйста, попробуйте снова.', 'ar': 'انتهت مهلة عملية الشراء. حاول مرة أخرى.', 'uk': 'Час очікування покупки минув. Спробуйте ще раз.', 'ro': 'Procesul de achiziție a expirat. Vă rugăm încercați din nou.', 'pl': 'Upłynął limit czasu zakupu. Spróbuj ponownie.',
+  },
+  'iap_subscription_price_line': {
+    'en': '6-Month Premium Subscription – €6.99 every 6 months', 'de': '6-Monats-Premium-Abo – 6,99 € alle 6 Monate', 'fa': 'اشتراک 6ماهه پرمیوم - ۶.۹۹ یورو برای هر 6 ماه', 'tr': '6 Aylık Premium Abonelik – Her 6 ayda bir 6,99 €',
+    'ru': 'Премиум-подписка на 6 месяцев – 6,99 € каждые 6 месяцев', 'ar': 'اشتراك مميز لمدة 6 أشهر - 6.99 يورو كل 6 أشهر', 'uk': 'Преміум-підписка на 6 місяців – 6,99 € кожні 6 місяців', 'ro': 'Abonament Premium de 6 luni – 6,99 € la fiecare 6 luni', 'pl': 'Subskrypcja Premium na 6 miesięcy – 6,99 € co 6 miesięcy',
+  },
+  'iap_privacy_policy_link': {
+    'en': 'Privacy Policy', 'de': 'Datenschutzrichtlinie', 'fa': 'سیاست حریم خصوصی (Privacy Policy)', 'tr': 'Gizlilik Politikası',
+    'ru': 'Политика конфиденциальности', 'ar': 'سياسة الخصوصية', 'uk': 'Політика конфіденційності', 'ro': 'Politica de confidențialitate', 'pl': 'Polityka prywatności',
+  },
+  'iap_terms_of_use_link': {
+    'en': 'Terms of Use', 'de': 'Nutzungsbedingungen', 'fa': 'شرایط استفاده (Terms of Use)', 'tr': 'Kullanım Şartları',
+    'ru': 'Условия использования', 'ar': 'شروط الاستخدام', 'uk': 'Умови використання', 'ro': 'Termeni de utilizare', 'pl': 'Warunki korzystania',
+  },
   'set_price_alert_title': {
     'en': 'Set Price Drop Alert', 'de': 'Preisalarm einstellen', 'fa': 'تنظیم هشدار افت قیمت', 'tr': 'Fiyat Düşüş Alarmı Kur',
     'ru': 'Установить оповещение о снижении цены', 'ar': 'تعيين تنبيه انخفاض السعر', 'uk': 'Встановити сповіщення про зниження ціни', 'ro': 'Setează alerta de preț', 'pl': 'Ustaw alert o spadku ceny',

@@ -703,6 +703,55 @@ void _showEmailSetupDialog(BuildContext context) {
     await box.put('lastLng', lng);
   }
 
+// طبق قانون اپل (Guideline 3.1.2c) قبل از دکمه خرید باید قیمت، مدت و لینک
+// حریم خصوصی/شرایط استفاده داخل خود اپ (نه فقط در پاپ‌آپ استور) نمایش داده شود.
+// این ویجت فقط در iOS نشان داده می‌شود؛ اندروید بدون تغییر باقی می‌ماند.
+Widget _buildIosSubscriptionComplianceInfo(BuildContext context, String currentLang) {
+  if (!Platform.isIOS) return const SizedBox.shrink();
+  return Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          translate('iap_subscription_price_line', currentLang),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Colors.black87),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 4,
+          children: [
+            TextButton(
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              onPressed: () async {
+                final uri = Uri.parse('https://sites.google.com/view/ahmaddelforouzi/privacy-policy');
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+              child: Text(
+                translate('iap_privacy_policy_link', currentLang),
+                style: const TextStyle(fontSize: 11.5, decoration: TextDecoration.underline),
+              ),
+            ),
+            TextButton(
+              style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              onPressed: () async {
+                final uri = Uri.parse('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/');
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+              child: Text(
+                translate('iap_terms_of_use_link', currentLang),
+                style: const TextStyle(fontSize: 11.5, decoration: TextDecoration.underline),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
 void _showTankenPremiumDialog(BuildContext context) {
   showDialog(
     context: context,
@@ -717,18 +766,24 @@ void _showTankenPremiumDialog(BuildContext context) {
         ),
         actionsAlignment: MainAxisAlignment.center,
         actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade700,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-            ),
-            onPressed: () async {
-              Navigator.pop(context);
-              // صدا زدن متد خرید داخل درگاه پلی کنسول شما
-              await PurchaseManager().buyPremium();
-            },
-            child: Text(translate('activate_premium_6months', widget.currentLang)),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+                ),
+                onPressed: () async {
+                  Navigator.pop(context);
+                  // صدا زدن متد خرید داخل درگاه پلی کنسول شما
+                  await PurchaseManager().buyPremium();
+                },
+                child: Text(translate('activate_premium_6months', widget.currentLang)),
+              ),
+              _buildIosSubscriptionComplianceInfo(context, widget.currentLang),
+            ],
           ),
         ],
       );
@@ -4633,18 +4688,32 @@ Widget build(BuildContext context) {
             if (!isProcessing) return const SizedBox.shrink();
             return Container(
               color: Colors.black54,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(color: Colors.white),
-                    const SizedBox(height: 20),
-                    Text(
-                      translate('connecting_google_play', widget.currentLang),
-                      style: const TextStyle(color: Colors.white, decoration: TextDecoration.none, fontSize: 16),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.white),
+                        const SizedBox(height: 20),
+                        Text(
+                          translate('connecting_google_play', widget.currentLang),
+                          style: const TextStyle(color: Colors.white, decoration: TextDecoration.none, fontSize: 16),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top + 8,
+                    right: 8,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                      onPressed: () {
+                        PurchaseManager().cancelProcessingManually();
+                      },
+                    ),
+                  ),
+                ],
               ),
             );
           },
@@ -5166,16 +5235,22 @@ Widget build(BuildContext context) {
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(translate('cancel', widget.currentLang)),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade700,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              translate('activate_premium_6months', widget.currentLang),
-            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(
+                  translate('activate_premium_6months', widget.currentLang),
+                ),
+              ),
+              _buildIosSubscriptionComplianceInfo(ctx, widget.currentLang),
+            ],
           ),
         ],
       ),

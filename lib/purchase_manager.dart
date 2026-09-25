@@ -54,6 +54,36 @@ class PurchaseManager {
   final ValueNotifier<bool> isPremiumUser = ValueNotifier<bool>(false);
   final ValueNotifier<bool> isProcessing = ValueNotifier<bool>(false);
 
+  // محافظ در برابر گیر کردنِ صفحه‌ی مسدودکننده‌ی خرید: روی iOS دیده شده که
+  // بستن پنجره‌ی خرید اپل (بدون زدن دکمه‌ی صریح Cancel) گاهی هیچ رویدادی به
+  // purchaseStream نمی‌فرستد، پس isProcessing برای همیشه true می‌ماند و
+  // کاربر پشت یک صفحه‌ی مسدود‌کننده‌ی تمام‌صفحه گیر می‌کند. این تایمر بعد از
+  // مدت معقولی خودش isProcessing را آزاد می‌کند اگر هیچ رویداد نهایی‌ای
+  // نرسیده باشد.
+  Timer? _processingWatchdog;
+
+  void _armProcessingWatchdog() {
+    _processingWatchdog?.cancel();
+    _processingWatchdog = Timer(const Duration(seconds: 20), () {
+      if (isProcessing.value) {
+        isProcessing.value = false;
+        _handleError(translate('iap_timeout', currentAppLanguage()));
+      }
+    });
+  }
+
+  void _disarmProcessingWatchdog() {
+    _processingWatchdog?.cancel();
+    _processingWatchdog = null;
+  }
+
+  /// دکمه‌ی × روی صفحه‌ی مسدودکننده صدا می‌زند — کاربر همیشه یک راه فرار
+  /// دستی دارد، صرف‌نظر از اینکه ریشه‌ی گیرکردن چه بوده.
+  void cancelProcessingManually() {
+    _disarmProcessingWatchdog();
+    isProcessing.value = false;
+  }
+
   // کالبک‌هایی برای فرستادن پیغام به UI (مثلاً نمایش اسنک‌بار)
   Function(String error)? onErrorOccurred;
   Function()? onPurchaseSuccess;
@@ -77,6 +107,7 @@ class PurchaseManager {
   void dispose() {
     isPremiumUser.dispose();
     _purchaseSubscription?.cancel();
+    _processingWatchdog?.cancel();
   }
 
   // گوش دادن به تغییرات درگاه پرداخت گوگل پلی
@@ -112,6 +143,7 @@ class PurchaseManager {
           if (purchaseDetails.pendingCompletePurchase) {
             await _inAppPurchase.completePurchase(purchaseDetails);
           }
+          _disarmProcessingWatchdog();
           isProcessing.value = false;
         } else if (purchaseDetails.status == PurchaseStatus.restored) {
           // restore فقط برای آزاد کردن مالکیت؛ اعتبار دوباره نمی‌دهیم
@@ -119,8 +151,10 @@ class PurchaseManager {
           if (purchaseDetails.pendingCompletePurchase) {
             await _inAppPurchase.completePurchase(purchaseDetails);
           }
+          _disarmProcessingWatchdog();
           isProcessing.value = false;
         } else if (purchaseDetails.status == PurchaseStatus.error) {
+          _disarmProcessingWatchdog();
           isProcessing.value = false;
           final msg = purchaseDetails.error?.message ?? translate('iap_failed', currentAppLanguage());
           if (_isAlreadyOwnedError(msg)) {
@@ -134,6 +168,7 @@ class PurchaseManager {
             _handleError(msg);
           }
         } else if (purchaseDetails.status == PurchaseStatus.canceled) {
+          _disarmProcessingWatchdog();
           isProcessing.value = false;
           _handleError(translate('iap_cancelled', currentAppLanguage()));
         }
@@ -276,6 +311,11 @@ class PurchaseManager {
               ? 'شروع خرید ناموفق بود. دوباره تلاش کنید.'
               : 'Could not start purchase. Try again.',
         );
+      } else {
+        // از اینجا به بعد صفحه‌ی خرید بومی (اپل/گوگل) روی صفحه است؛ اگر
+        // کاربر بدون رد شدن از purchaseStream ببندتش (روی iOS دیده شده)،
+        // این تایمر جلوی گیر کردن دائمی پشت صفحه‌ی مسدودکننده را می‌گیرد.
+        _armProcessingWatchdog();
       }
     } catch (e) {
       final msg = e.toString();
@@ -286,6 +326,7 @@ class PurchaseManager {
             purchaseParam: purchaseParam,
             autoConsume: true,
           );
+          _armProcessingWatchdog();
           return;
         } catch (e2) {
           isProcessing.value = false;
