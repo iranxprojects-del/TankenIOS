@@ -837,7 +837,7 @@ void _showTankenPremiumDialog(BuildContext context) {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               ),
-              onPressed: () => PurchaseManager().buyPremium(),
+              onPressed: () => _showTankenPremiumDialog(context),
               child: Text(translate('extend_6_months', currentLang), style: const TextStyle(fontSize: 11)),
             ),
           ],
@@ -914,8 +914,9 @@ void _showTankenPremiumDialog(BuildContext context) {
               elevation: 2,
             ),
             onPressed: () {
-              // صدا زدن مستقیم متد خرید از مدیریت خرید شما
-              PurchaseManager().buyPremium();
+              // به‌جای صدا زدن مستقیم خرید، دیالوگی که قیمت/مدت و لینک‌های
+              // حریم خصوصی/شرایط استفاده را نشان می‌دهد باز می‌شود (الزام اپل).
+              _showTankenPremiumDialog(context);
             },
             child: Text(
               buttonText,
